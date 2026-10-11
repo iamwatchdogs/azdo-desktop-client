@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Runs the `staged` checks from vite.config.ts (format staged files).
+vp staged

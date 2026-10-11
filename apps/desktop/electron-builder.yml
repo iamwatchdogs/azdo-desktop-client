@@ -1,0 +1,34 @@
+appId: io.ado.app
+productName: Azure DevOps App
+copyright: Copyright © 2026
+
+directories:
+  output: release
+
+# node_modules production deps are included automatically; these entries add
+# the bundles the main process loads from disk at runtime.
+files:
+  - dist-electron/**
+  - dist/renderer/**
+  - package.json
+
+# Native prebuilds (.node files) cannot be required from inside the ASAR.
+asarUnpack:
+  - "**/node_modules/@napi-rs/**"
+  - "**/node_modules/@crowecawcaw/**"
+  - "**/node_modules/ffi-rs/**"
+  - "**/node_modules/dbus-next/**"
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+
+win:
+  target:
+    - nsis
+
+linux:
+  category: Development
+  target:
+    - AppImage

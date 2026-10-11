@@ -1,0 +1,10 @@
+{
+  "//": "Editor/tooling aggregate config. Per-package typecheck runs via `vp run -r typecheck`.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "jsx": "react-jsx"
+  },
+  "include": ["apps/**/*", "packages/**/*", "scripts/**/*", "*.config.ts"]
+}

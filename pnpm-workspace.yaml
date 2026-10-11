@@ -1,0 +1,91 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 11+ successor to onlyBuiltDependencies.
+# true = the package's install script may run; false = pnpm 10 behavior (skipped).
+allowBuilds:
+  "@crowecawcaw/xa11y": true
+  "@napi-rs/keyring": true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  ffi-rs: true
+
+permissions:
+  # @tanstack/router-plugin ships agent skills (skills/*/SKILL.md); denied so
+  # they stay out of this repo and resolution never waits on approval.
+  "@tanstack/router-plugin":
+    build: false
+    skills: false
+
+# Disables pnpm 12's default 24h freshness gate so pinned latest versions install
+# deterministically. t3code keeps the gate and maintains an exclusion allowlist.
+minimumReleaseAge: 0
+
+overrides:
+  # One copy of the toolchain and React across every workspace.
+  react: "catalog:"
+  react-dom: "catalog:"
+  vite: "catalog:"
+  vite-plus: "catalog:"
+  # dbus-next's optional unix-socket fast path needs a native build and is
+  # unused on macOS; cut the edge like t3code does.
+  "dbus-next>usocket": "-"
+
+# `vite` is aliased to @voidzero-dev/vite-plus-core (Vite 8 + Rolldown), which
+# does not satisfy vitest's `vite` peer range.
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"
+
+# Single source of truth for shared dependency versions (pnpm catalog protocol).
+catalog:
+  "@base-ui/react": 1.9.0
+  "@crowecawcaw/xa11y": 0.15.2
+  "@dnd-kit/core": 6.3.1
+  "@dnd-kit/sortable": 10.0.0
+  "@dnd-kit/utilities": 3.2.2
+  "@napi-rs/keyring": 2.1.1
+  "@playwright/test": 1.64.0
+  "@shadcn/lint": 0.2.1
+  "@tailwindcss/typography": 0.5.20
+  "@tailwindcss/vite": 4.3.3
+  "@tanstack/react-router": 1.170.42
+  "@tanstack/router-plugin": 1.168.43
+  "@tanstack/react-virtual": 3.14.14
+  "@types/node": 26.6.5
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  "@vitejs/plugin-react": 6.1.2
+  "class-variance-authority": 0.7.1
+  "clsx": 2.1.1
+  "cmdk": 1.1.1
+  "dbus-next": 0.10.2
+  "electron": 44.7.0
+  "electron-builder": 26.15.3
+  "electron-store": 11.0.2
+  "electron-updater": 6.8.9
+  "ffi-rs": 1.3.7
+  "knip": 6.41.0
+  "lucide-react": 1.55.0
+  "motion": 14.1.0
+  "oxlint": 1.87.0
+  "oxfmt": 0.72.0
+  "react": 19.3.0
+  "react-dom": 19.3.0
+  "react-markdown": 10.1.0
+  "remark-gfm": 4.0.1
+  "tailwind-merge": 3.7.0
+  "tailwindcss": 4.3.3
+  "ts-morph": 28.0.0
+  "tsx": 4.23.15
+  "tw-animate-css": 1.4.0
+  "typescript": 7.0.2
+  "vite": npm:@voidzero-dev/vite-plus-core@1.1.0
+  "vite-plus": 1.1.0
+  "vitest": 5.0.3
+  "zod": 4.6.5
+  "zustand": 5.0.15

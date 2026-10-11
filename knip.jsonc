@@ -1,0 +1,43 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": [],
+  // Scaffold SDK: present so features can be built immediately.
+  // oxlint/oxfmt run via `vp lint -c` / `vp fmt -c`; the rest are consumed as
+  // features land (tw-animate-css/typography via CSS imports knip does not follow).
+  "ignoreDependencies": [
+    "oxlint",
+    "oxfmt",
+    "tailwindcss",
+    "@base-ui/react",
+    "@dnd-kit/core",
+    "@dnd-kit/sortable",
+    "@dnd-kit/utilities",
+    "@tailwindcss/typography",
+    "@tanstack/react-virtual",
+    "class-variance-authority",
+    "cmdk",
+    "lucide-react",
+    "motion",
+    "react-markdown",
+    "remark-gfm",
+    "tw-animate-css",
+    "zustand",
+  ],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.ts", "*.config.ts"],
+      "project": ["scripts/**/*.ts", "*.config.ts"],
+    },
+    "apps/desktop": {
+      "entry": ["src/main.ts", "src/preload.ts", "test/e2e/*.ts", "*.config.ts", "scripts/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+    },
+    "apps/renderer": {
+      "entry": ["index.html", "test/**/*.ts", "*.config.ts"],
+      "project": ["src/**/*.{ts,tsx}", "test/**/*.ts"],
+    },
+    "packages/shared": {
+      "project": ["src/**/*.ts"],
+    },
+  },
+}

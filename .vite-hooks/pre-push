@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Quality gate before pushing.
+set -e
+
+vp fmt -c .oxfmtrc.json --check
+vp lint -c .oxlintrc.json
+vp run -r typecheck
+tsx scripts/architecture-check.ts

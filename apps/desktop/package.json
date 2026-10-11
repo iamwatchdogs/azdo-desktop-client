@@ -1,0 +1,32 @@
+{
+  "name": "@ado/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dist": "electron-builder",
+    "start": "electron .",
+    "test": "vp test run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ado/shared": "workspace:*",
+    "@crowecawcaw/xa11y": "catalog:",
+    "@napi-rs/keyring": "catalog:",
+    "dbus-next": "catalog:",
+    "electron": "catalog:",
+    "electron-store": "catalog:",
+    "electron-updater": "catalog:",
+    "ffi-rs": "catalog:"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "electron-builder": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "productName": "Azure DevOps App"
+}

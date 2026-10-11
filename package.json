@@ -6,18 +6,24 @@
   "scripts": {
     "arch:check": "tsx scripts/architecture-check.ts",
     "build": "vp run --filter @ado/desktop build",
+    "check:complexity": "vp lint -c .oxlintrc.complexity.json",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .vite-plus apps/*/.vite-plus packages/*/.vite-plus",
     "dev": "vp run --filter @ado/desktop dev",
     "dist": "vp run --filter @ado/desktop dist",
     "fmt": "vp fmt -c .oxfmtrc.json",
     "fmt:check": "vp fmt -c .oxfmtrc.json --check",
+    "hooks:pre-commit": "node scripts/hooks/pre-commit.ts",
+    "hooks:pre-merge-commit": "node scripts/hooks/pre-merge-commit.ts",
+    "hooks:pre-push": "node scripts/hooks/pre-push.ts",
+    "hooks:test": "vp test run",
     "knip": "knip",
     "lint": "vp lint -c .oxlintrc.json",
     "prepare": "vp config --no-agent",
     "start": "vp run --filter @ado/desktop start",
     "test": "vp run -r test",
     "test:e2e": "vp run --filter @ado/desktop test:e2e",
-    "typecheck": "vp run -r typecheck"
+    "typecheck": "vp run -r typecheck",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json"
   },
   "devDependencies": {
     "@shadcn/lint": "catalog:",
@@ -25,6 +31,7 @@
     "knip": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
+    "oxlint-plugin-complexity": "catalog:",
     "ts-morph": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

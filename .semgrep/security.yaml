@@ -1,0 +1,36 @@
+# Semgrep rules for the pre-push gate.
+#
+# Deterministic SAST only: patterns that cannot produce false positives in
+# ordinary Electron code. Anything noisier belongs in CI, where a finding is
+# reviewed rather than blocking a push.
+#
+# Language note: semgrep has no separate `tsx` identifier — TypeScript files
+# containing JSX are parsed as `typescript`. Valid `tsx`/`jsx` here makes
+# `semgrep --validate` fail closed, which would break the gate.
+#
+# Validate after editing:  semgrep --validate --config .semgrep
+
+rules:
+  - id: electron-insecure-webpreferences
+    patterns:
+      - pattern-regex: "nodeIntegration\\s*:\\s*true|enableRemoteModule\\s*:\\s*true|contextIsolation\\s*:\\s*false|sandbox\\s*:\\s*false"
+    message: >-
+      Insecure Electron webPreferences. Keep sandbox and contextIsolation on and
+      nodeIntegration off; the renderer has no business reaching Node.
+    severity: ERROR
+    languages: [typescript, javascript]
+
+  - id: no-dynamic-code-execution
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+    message: Avoid eval/new Function; dynamic code execution is a code-injection vector.
+    severity: ERROR
+    languages: [typescript, javascript]
+
+  - id: no-hardcoded-absolute-paths
+    patterns:
+      - pattern-regex: "fs\\.(?:promises\\.)?(?:readFile|writeFile|readdir|unlink|createWriteStream)\\(\\s*['\"]/(?:etc|root|usr|var)"
+    message: Hardcoded absolute system path; resolve it from configuration instead.
+    severity: WARNING
+    languages: [typescript, javascript]

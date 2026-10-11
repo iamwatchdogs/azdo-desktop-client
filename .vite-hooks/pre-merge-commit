@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Vite+ hook shim -> project-owned dispatcher.
+# Keep this to wiring only; policy lives in hooks.config.ts.
+#
+# Git has no `pre-merge` hook. This is the merge-stage hook: it runs for
+# non-fast-forward merges, after the merge is resolved and before the merge
+# commit is written. Fast-forward merges create no merge commit and never
+# reach this script — that is git's behavior, not an oversight here.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec node scripts/hooks/pre-merge-commit.ts "$@"

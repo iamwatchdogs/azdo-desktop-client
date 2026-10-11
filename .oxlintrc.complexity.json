@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "dist-electron",
+    "release",
+    "pnpm-lock.yaml",
+    "*.tsbuildinfo",
+    "**/routeTree.gen.ts"
+  ],
+
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "pedantic": "off",
+    "perf": "off"
+  },
+
+  "jsPlugins": ["oxlint-plugin-complexity"],
+
+  "rules": {
+    "complexity/complexity": ["error", { "cyclomatic": 20, "cognitive": 15, "minLines": 5 }],
+    "max-depth": ["error", 4]
+  }
+}

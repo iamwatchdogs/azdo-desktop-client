@@ -1,0 +1,65 @@
+name: "CodeQL Advanced"
+
+# Two languages, both build-mode: none. TypeScript is analysed without a build
+# (the extractor reads the source tree), and GitHub Actions is analysed as
+# workflow YAML -- which is the half of this repository where a template
+# injection or an unpinned `uses:` actually lives.
+#
+# `security-and-quality` rather than the default `security` set: it adds the
+# maintainability queries, and an alert from those is as cheap to triage here as
+# a real one.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+  schedule:
+    - cron: "30 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  # A scheduled run must not be cancelled by a push landing mid-analysis.
+  group: codeql-${{ github.ref }}${{ github.event_name == 'schedule' && '-scheduled' || '' }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      packages: read # fetch private or internal CodeQL packs
+      actions: read # private repos: read workflow metadata for SARIF
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: "/language:${{ matrix.language }}"

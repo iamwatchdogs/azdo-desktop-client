@@ -1,0 +1,419 @@
+name: CI
+
+# Doubles as the push/PR entry point and as a reusable workflow that cd.yml
+# calls with `run-all: true`, so a tag cannot ship a tree that main's CI never
+# checked.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      run-all:
+        description: "Force every job (release gate); bypasses path filtering"
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      GITLEAKS_LICENSE:
+        description: "Only needed once this repository belongs to an organisation"
+        required: false
+
+permissions:
+  contents: read
+
+# `prepare` runs `vp config --no-agent`, which installs the dispatcher into
+# .vite-hooks/_ and sets core.hooksPath. That is a developer-loop concern; CI
+# enforces the same gates as jobs below. Without this, every job pays for a hook
+# install it will never invoke.
+env:
+  VP_GIT_HOOKS: "0"
+
+concurrency:
+  group: ci-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  detect-changes:
+    name: Detect changes
+    # A dispatch means "run the checks now", and path filters decide scope from
+    # the last commit, so letting them run would report a green `CI Status`
+    # having checked almost nothing.
+    if: ${{ !inputs.run-all && github.event_name != 'workflow_dispatch' }}
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # dorny/paths-filter lists PR files over the REST API
+
+    outputs:
+      source: ${{ steps.filter.outputs.source }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      docs: ${{ steps.filter.outputs.docs }}
+
+    steps:
+      - name: Check out the repo
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect changed areas
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            # Everything the lint, test and security jobs read. The three
+            # scanner configs live here rather than in their own filter on
+            # purpose: touching one re-runs SAST and the dependency gate, which
+            # is the only way a suppression in .osv-scanner.toml can be
+            # re-litigated. A docs-only diff runs nothing.
+            source:
+              - 'apps/**'
+              - 'packages/**'
+              - 'scripts/**'
+              - '*.ts'
+              - '*.json'
+              - '*.jsonc'
+              - 'tsconfig*.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.oxlintrc.json'
+              - '.oxlintrc.complexity.json'
+              - '.gitleaks.toml'
+              - '.osv-scanner.toml'
+              - '.semgrep/**'
+            workflows:
+              - '.github/**'
+            docs:
+              - '**/*.md'
+
+  lint-workflows:
+    name: Lint GitHub Actions workflows
+    needs: [detect-changes]
+    if: |
+      (inputs.run-all || github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.workflows == 'true') &&
+      !failure() &&
+      !cancelled()
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github
+          persist-credentials: false
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2
+        with:
+          version: v1.7.12
+
+  # The local pre-push gate is `vp run push-gate`, but that task is not what CI
+  # runs, for two reasons. Its `secrets` and `sast` members are range-scoped
+  # through $GITHOOK_BASE, which only the git hooks export -- in CI the base is
+  # whatever the checkout's history allows, and the security job below scans
+  # full history instead. And an aggregator that hides six checks behind one
+  # `vp run` line loses the per-step signal in the Actions UI. So the four
+  # base-independent tasks run as named steps, and the two range-scoped ones
+  # live in the `security` job. Keep the two lists in step when vite.config.ts
+  # changes.
+  static-analysis:
+    name: Static analysis
+    needs: [detect-changes]
+    if: |
+      (inputs.run-all || github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.source == 'true') &&
+      !failure() &&
+      !cancelled()
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Vite+, Node and dependencies
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version: "24"
+          cache: true
+
+      - name: Format, lint and type-aware lint
+        run: vp check
+
+      - name: Cognitive/cyclomatic complexity ceiling
+        run: vp run complexity
+
+      - name: Typecheck every workspace and the hook scripts
+        run: vp run typecheck:all
+
+      - name: Import-boundary guard
+        run: vp run arch-check
+
+      - name: Unused files, dependencies and exports
+        run: vp run knip
+
+  test:
+    name: Unit tests (${{ matrix.os }})
+    needs: [detect-changes]
+    if: |
+      (inputs.run-all || github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.source == 'true') &&
+      !failure() &&
+      !cancelled()
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # @napi-rs/keyring, ffi-rs and dbus-next all ship platform-specific
+        # artifacts and are covered by pnpm-workspace allowBuilds. A green
+        # ubuntu run says nothing about whether those install on Windows or
+        # macOS, so all three are exercised.
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Vite+, Node and dependencies
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version: "24"
+          cache: true
+
+      - name: Root workspace (hook policy tests)
+        run: vp test run --passWithNoTests
+
+      - name: packages/shared
+        run: vp -C packages/shared test run --passWithNoTests
+
+      - name: apps/renderer
+        run: vp -C apps/renderer test run --passWithNoTests
+
+      - name: apps/desktop
+        run: vp -C apps/desktop test run --passWithNoTests
+
+  e2e:
+    name: Electron e2e
+    needs: [detect-changes]
+    if: |
+      (inputs.run-all || github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.source == 'true') &&
+      !failure() &&
+      !cancelled()
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Vite+, Node and dependencies
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version: "24"
+          cache: true
+
+      # The spec drives the Electron binary from node_modules, so Playwright
+      # downloads no browser of its own -- but it does need the shared
+      # libraries Electron links against (libnss3, libgbm, libasound and
+      # friends), which the runner image does not carry.
+      - name: Install Electron's shared libraries
+        run: vp -C apps/desktop exec playwright install-deps chromium
+
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends xvfb
+
+      # main.ts loads dist/renderer/index.html from disk, so the e2e cannot run
+      # against a source-only checkout.
+      - name: Build the renderer and main process
+        run: pnpm build
+
+      - name: Run the e2e suite
+        run: xvfb-run --auto-servernum pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: apps/desktop/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+  security:
+    name: Security scanners
+    needs: [detect-changes]
+    if: |
+      (inputs.run-all || github.event_name == 'workflow_dispatch' ||
+      needs.detect-changes.outputs.source == 'true') &&
+      !failure() &&
+      !cancelled()
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    # Deliberately no setup-vp step: none of these three scanners need Node or
+    # an installed dependency tree. gitleaks reads git history, osv-scanner
+    # reads pnpm-lock.yaml plus the manifests, and semgrep reads source. That
+    # keeps the job to one checkout and three tools.
+    steps:
+      # Full history, not the default shallow fetch: the whole point of a
+      # secret gate is catching a credential that landed in an old commit and
+      # was only rewritten later.
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan git history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unused while the repository is under a personal account; required
+          # the moment it moves to an organisation.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_CONFIG: .gitleaks.toml
+          # Comments need pull-requests: write. The job fails on a leak either
+          # way, so the extra permission buys nothing here.
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+
+      # Same invocation as the local `deps` task, so the acceptances recorded
+      # in .osv-scanner.toml mean the same thing in both places.
+      - name: Scan the lockfile for known advisories
+        uses: google/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        with:
+          scan-args: |-
+            scan source
+            --config .osv-scanner.toml
+            --lockfile=pnpm-lock.yaml
+            --format=table
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+
+      # The semgrep action is deprecated and this repo's rules are its own
+      # (.semgrep/security.yaml), so the CLI is the honest interface. The
+      # version is pinned because rule behaviour can change in a release;
+      # bump it on purpose, with Dependabot or a hand edit.
+      #
+      # No --baseline-commit: the local task diffs against $GITHOOK_BASE, and
+      # CI scans the whole tree instead. A pre-existing finding should not be
+      # invisible in CI just because it predates the PR.
+      - name: Deterministic SAST
+        run: >-
+          uvx --from semgrep==1.180.0 semgrep scan
+          --config .semgrep
+          --metrics=off
+          --disable-version-check
+          --error
+          --exclude=node_modules
+          --exclude=dist
+          --exclude=dist-electron
+          --exclude=release
+          --exclude=.vite-plus
+
+  # One required status check for branch protection. Path-filtered jobs report
+  # `skipped`, which is indistinguishable from a failure unless the filter's
+  # own verdict is consulted -- this job is where that happens.
+  ci-status:
+    name: CI Status
+    needs:
+      - detect-changes
+      - lint-workflows
+      - static-analysis
+      - test
+      - e2e
+      - security
+    if: ${{ always() }}
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      - name: Fail unless every applicable job succeeded
+        env:
+          DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
+          WORKFLOWS_FILTER: ${{ needs.detect-changes.outputs.workflows }}
+          SOURCE_FILTER: ${{ needs.detect-changes.outputs.source }}
+          LINT_WORKFLOWS_RESULT: ${{ needs.lint-workflows.result }}
+          STATIC_ANALYSIS_RESULT: ${{ needs.static-analysis.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+        run: |
+          set -uo pipefail
+          failed=''
+
+          # allow(): $1 = filter output from detect-changes, $2 = job result.
+          # Pass if succeeded, or skipped with explicit "false" filter provenance.
+          allow() {
+            [ "$2" = success ] && return 0
+            [ "$2" = skipped ] && [ "$1" = false ] && return 0
+            return 1
+          }
+
+          report() {
+            # report() <label> <filter> <result>
+            if allow "$2" "$3"; then
+              printf '✅ %s: %s\n' "$1" "$3"
+            else
+              printf '❌ %s: %s (filter: %s)\n' "$1" "$3" "$2"
+              failed=1
+            fi
+          }
+
+          # detect-changes has no filter of its own; "skipped" only happens when
+          # run-all forces every job, which is legitimate.
+          case "$DETECT_CHANGES_RESULT" in
+            success|skipped) printf '✅ Detect changes: %s\n' "$DETECT_CHANGES_RESULT" ;;
+            *) printf '❌ Detect changes: %s\n' "$DETECT_CHANGES_RESULT"; failed=1 ;;
+          esac
+
+          report "Lint workflows"     "$WORKFLOWS_FILTER"    "$LINT_WORKFLOWS_RESULT"
+          report "Static analysis"    "$SOURCE_FILTER"      "$STATIC_ANALYSIS_RESULT"
+          report "Unit tests"         "$SOURCE_FILTER"      "$TEST_RESULT"
+          report "Electron e2e"       "$SOURCE_FILTER"      "$E2E_RESULT"
+          report "Security scanners"  "$SOURCE_FILTER"      "$SECURITY_RESULT"
+
+          if [ -n "$failed" ]; then
+            echo "::error::One or more CI jobs did not succeed (or the run was cancelled); see the results above."
+            exit 1
+          fi
+
+          echo "All applicable CI jobs succeeded."

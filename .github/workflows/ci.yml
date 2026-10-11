@@ -80,7 +80,6 @@ jobs:
               - 'tsconfig*.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
-              - '.oxlintrc.json'
               - '.oxlintrc.complexity.json'
               - '.gitleaks.toml'
               - '.osv-scanner.toml'

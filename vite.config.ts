@@ -3,9 +3,8 @@ import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 
 /**
- * Shared by the `fmt` and `lint` blocks. Oxfmt and Oxlint take the same globs,
- * so keeping one list stops generated and build output from drifting back into
- * the checks.
+ * Shared by `fmt` and `lint`: oxfmt and oxlint take the same globs, so one list
+ * keeps generated and build output out of both.
  */
 const IGNORE_PATTERNS = [
   "node_modules",
@@ -18,12 +17,10 @@ const IGNORE_PATTERNS = [
 ];
 
 /**
- * Single declarative source for formatting, linting, staged-file checks, and
- * the task graph the git hooks execute. See
+ * Single declarative source for format, lint, test, staged-file and task
+ * settings. `GITHOOK_BASE` is exported by .vite-hooks/pre-push, so
+ * range-scoped checks need no bespoke plumbing. See
  * node_modules/vite-plus/docs/guide/commit-hooks.md and /guide/run.md.
- *
- * `GITHOOK_BASE` is exported by .vite-hooks/pre-push and holds the SHA this
- * push is compared against, so range-scoped checks need no bespoke plumbing.
  */
 export default defineConfig({
   fmt: {
@@ -86,10 +83,9 @@ export default defineConfig({
     rules: {
       eqeqeq: ["error", "always", { null: "ignore" }],
 
-      // oxlint 1.87 implements no console rule at all: `no-console` and
-      // `unicorn/no-console` both fail to resolve, and an unknown rule is
-      // ignored silently. Console output is policed by scripts/hooks/policy.ts,
-      // which blocks console.log/debug/trace/dir/timing on staged lines.
+      // oxlint 1.87 has no console rule: `no-console` and `unicorn/no-console`
+      // both fail to resolve, and an unknown rule is ignored silently.
+      // scripts/hooks/policy.ts enforces it on staged lines instead.
       "no-var": "error",
       "no-eq-null": "error",
       "typescript/no-explicit-any": "error",
@@ -167,8 +163,8 @@ export default defineConfig({
       "shadcn/no-raw-colors": "error",
     },
 
-    // Globs resolve from this file, so package-relative paths name the
-    // workspace (`scripts/**`, `apps/desktop/src/main.ts`), not a `cd`'d dir.
+    // Globs resolve from this file, so paths name the workspace
+    // (`scripts/**`, `apps/desktop/src/main.ts`), not a `cd`'d dir.
     overrides: [
       {
         files: [
@@ -211,39 +207,38 @@ export default defineConfig({
     },
   },
 
-  /**
-   * Staged-file checks, run by `vp staged` on every commit. Vite+ bundles
-   * lint-staged, so staging, stashing, and re-staging are handled for us.
-   *
-   * `vp check --fix` = format + lint + type-aware lint in one pass.
-   */
-  // Unit tests for the git-hook policy layer (scripts/hooks). These run in the
-  // root workspace only; each app/package owns its own Vitest block.
+  // Hook-policy tests. Root workspace only; each app/package owns its own block.
   test: {
     environment: "node",
     include: ["scripts/**/*.test.ts"],
   },
 
+  /**
+   * Staged-file checks, run by `vp staged` on every commit. Vite+ bundles
+   * lint-staged, so staging, stashing and re-staging are handled for us.
+   *
+   * `vp check --fix` = format + lint + type-aware lint in one pass.
+   */
   staged: {
     "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css,html,yml,yaml,sh,md}": "vp check --fix",
     "**/*": "node scripts/hooks/policies.ts",
   },
 
   run: {
-    // These gates inspect the working tree and git history; caching them would
-    // replay a stale result after a change.
+    // These gates read the working tree and git history; caching would replay a
+    // stale result after a change.
     cache: { scripts: false, tasks: false },
     tasks: {
       /**
-       * Full typecheck: every workspace, then the hook scripts. Named distinctly
-       * from the package.json `typecheck` script — Vite Task refuses to load a
-       * task graph when a task and a script share a name.
+       * Every workspace plus the hook scripts. Named distinctly from the
+       * package.json `typecheck` script: Vite Task refuses to load a task graph
+       * when a task and a script share a name.
        */
       "typecheck:all": {
         command: ["vp run -r typecheck", "tsc -p scripts/tsconfig.json"],
         cache: false,
       },
-      /** Cognitive/cyclomatic complexity ceiling. */
+      /** Cognitive/cyclomatic ceiling. */
       complexity: {
         command: "vp lint -c .oxlintrc.complexity.json",
         cache: false,
@@ -268,15 +263,15 @@ export default defineConfig({
       /**
        * Known-vulnerability scan over the lockfile.
        *
-       * `--config .osv-scanner.toml` applies the reviewed acceptances for three
-       * transitive advisories (postcss-selector-parser, sprintf-js, xml2js) that
-       * are build-time or unreachable in the shipped app, and that no upstream
-       * release currently fixes. Without it osv-scanner exits non-zero on any
-       * advisory at any severity, so the gate would block every push over
-       * dependencies nobody can act on.
+       * `--config .osv-scanner.toml` applies three reviewed acceptances for
+       * transitive advisories (postcss-selector-parser, sprintf-js, xml2js)
+       * that are build-time or unreachable in the shipped app and that no
+       * upstream release fixes. Unscoped, osv-scanner exits non-zero on any
+       * advisory at any severity, so the gate would block over dependencies
+       * nobody can act on.
        *
-       * The suppressions are scoped to those three IDs, not to a severity or a
-       * package class: a new advisory still fails the gate.
+       * The suppressions name those three IDs, not a severity or package class:
+       * a new advisory still fails the gate.
        */
       deps: {
         command:
@@ -287,14 +282,11 @@ export default defineConfig({
       /**
        * Deterministic SAST, diff-scoped via the push base.
        *
-       * Heavy scanners, serialized.
-       *
-       * semgrep and vitest are each memory-hungry; running them concurrently
-       * on an 8 GB machine gets them OOM-killed (exit 137), which is a false
-       * failure that looks like a flaky gate. They form a chain instead:
-       * sast -> unit-tests. Declaring `sast` and `unit-tests` as siblings of
-       * `push-gate` runs them together, which is exactly what caused the kill.
-       * Cheap checks stay parallel in `push-gate`.
+       * semgrep and vitest are each memory-hungry; running them concurrently on
+       * an 8 GB machine OOM-kills them (exit 137), a false failure that looks
+       * flaky. They chain instead: sast -> unit-tests. Declaring them as
+       * siblings of `push-gate` is exactly what caused the kill. Cheap checks
+       * stay parallel in `push-gate`.
        */
       sast: {
         command:
@@ -303,20 +295,19 @@ export default defineConfig({
       },
 
       /**
-       * Test suite, narrowed to the specs affected by the current change.
+       * Test suite narrowed to the specs the current change affects.
        *
-       * Driven by `GITHOOK_BASE`. For pre-commit that base is `HEAD`, so
-       * "changed" means the staged delta; for pre-push it is the remote SHA.
-       * Each `vp -C <ws> test run --changed` reports "no test files" with a
-       * zero exit code when nothing it owns changed, so a docs-only commit runs
-       * no vitest at all.
+       * Driven by `GITHOOK_BASE`: HEAD for pre-commit (so "changed" is the
+       * staged delta), the remote SHA for pre-push. Each `vp -C <ws> test run
+       * --changed` exits 0 with "no test files" when nothing it owns changed, so
+       * a docs-only commit runs no vitest.
        *
-       * Deliberately does NOT depend on `sast`: this is the inner commit loop
-       * and must stay fast. Semgrep and the full matrix belong to the push gate.
+       * Deliberately independent of `sast`: this is the inner commit loop and
+       * must stay fast. Semgrep and the full matrix belong to the push gate.
        *
-       * `apps/desktop` e2e goes through Playwright's `--only-changed`. It
-       * launches Electron against dist-electron, so it is skipped when that
-       * build is absent rather than failing a commit on a missing artifact.
+       * `apps/desktop` e2e uses Playwright's `--only-changed`. It launches
+       * Electron against dist-electron, so a missing build skips rather than
+       * fails a commit.
        */
       "tests:changed": {
         command: [
@@ -329,13 +320,12 @@ export default defineConfig({
       },
 
       /**
-       * The full test suite, unfiltered. Used by the merge and push paths,
-       * where the cost of a slow gate is worth paying for certainty.
+       * Full suite, unfiltered, for the merge and push paths where certainty is
+       * worth the cost.
        *
-       * The root workspace runs unconditionally rather than under `--changed`:
-       * it owns the hook-policy tests, which guard the code the pre-commit hook
-       * runs. A change to the gate's own logic must not be able to disable the
-       * tests that check it.
+       * The root workspace runs unconditionally rather than under `--changed`: it
+       * owns the hook-policy tests, which guard the code pre-commit runs. A
+       * change to the gate's own logic must not disable the tests checking it.
        */
       "tests:all": {
         command: [
@@ -349,9 +339,9 @@ export default defineConfig({
       },
 
       /**
-       * The pre-push gate. Vite Task runs the dependencies concurrently and
-       * reports them together, so this is the whole gate in one command.
-       * Its own command is a marker that runs only when the deps all pass.
+       * The pre-push gate. Vite Task runs the deps concurrently and reports them
+       * together, so this is the whole gate in one command. Its own command is a
+       * marker that runs only when the deps all pass.
        */
       "push-gate": {
         command: "echo 'push gate passed'",

@@ -6,7 +6,6 @@
   // features land (tw-animate-css/typography via CSS imports knip does not follow).
   "ignoreDependencies": [
     "oxlint",
-    "oxlint-plugin-complexity",
     "oxfmt",
     "tailwindcss",
     "@base-ui/react",

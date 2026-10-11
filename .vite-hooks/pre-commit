@@ -1,18 +1,17 @@
 #!/usr/bin/env sh
 # Vite+ hook shim: staged-file checks + affected tests on commit.
 #
-# The commit-time policy is declared in vite.config.ts:
-#   staged.*        -> lint-staged checks (vp check --fix, policies)
-#   run.tasks tests:changed -> only the specs this commit actually touches
+# Commit policy lives in vite.config.ts:
+#   staged.*             -> lint-staged checks (vp check --fix, policies)
+#   run.tasks tests:changed -> only the specs this commit touches
 #
 # Tests are scoped, not skipped: `GITHOOK_BASE` is HEAD, so `vitest --changed`
-# and Playwright's `--only-changed` select the specs affected by what you are
-# committing. A commit that breaks an unrelated spec stays green, which is the
-# point — the full matrix runs in the push gate.
+# and Playwright's `--only-changed` select affected specs. Breaking an unrelated
+# spec stays green by design — the full matrix runs in the push gate.
 #
-# `cd` to the repository root is deliberate: `vp staged` reads the `staged`
-# block from the root vite.config.ts and fails when invoked from a workspace
-# package (voidzero-dev/vite-plus#2177). Do not "simplify" it away.
+# `cd` to the repo root is deliberate: `vp staged` reads the `staged` block from
+# the root vite.config.ts and fails from a workspace package
+# (voidzero-dev/vite-plus#2177). Do not "simplify" it away.
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")

@@ -1,0 +1,93 @@
+name: "CodeQL Advanced"
+
+# Two languages, both build-mode: none.
+#
+# Do not add a build step -- not `pnpm build`, not `tsc`, not `autobuild`. It is
+# not that compiling is unnecessary here; it is that compiling *breaks* the
+# scan. CodeQL's JavaScript/TypeScript extractor parses the source tree on its
+# own, and supplying a build command overrides that extractor, which produces an
+# empty database and a green run that found nothing. GitHub's own wording:
+# "When you run `database create` for JavaScript, TypeScript, Python, and Ruby,
+# you should not specify a `--command` option. Otherwise this overrides the
+# normal extractor invocation, which will create an empty database." `--build-mode`
+# is likewise documented for C/C++, C#, Java and Rust; it is not a knob for
+# interpreted languages.
+#
+# There is also nothing to gain. CodeQL's TypeScript support does its own
+# source-local type inference and never consults `tsc`'s type graph, so a
+# successful compile adds no analysis input. The one thing a build *would*
+# surface -- generated files -- is handled by exclusion instead, further down.
+#
+# GitHub Actions is the other language: the workflow definitions are where a
+# template injection or an unpinned `uses:` in this repository would actually
+# live. `build-mode` is a per-job input that only applies when one language is
+# analysed per job, which is what the matrix below does.
+#
+# `security-and-quality` rather than the default `security` set: it adds the
+# maintainability queries, and an alert from those is as cheap to triage here as
+# a real one.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+  schedule:
+    - cron: "30 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  # A scheduled run must not be cancelled by a push landing mid-analysis.
+  group: codeql-${{ github.ref }}${{ github.event_name == 'schedule' && '-scheduled' || '' }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      security-events: write
+      packages: read # fetch private or internal CodeQL packs
+      actions: read # private repos: read workflow metadata for SARIF
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-and-quality
+          # routeTree.gen.ts is written by @tanstack/router-plugin during the
+          # build, is committed, and is already excluded from oxfmt
+          # (vite.config.ts fmt.ignorePatterns), knip and language stats
+          # (.gitattributes). Scanning it is inconsistent with the rest of the
+          # toolchain: it is a flat list of imports and route literals that no
+          # security query has anything to say about. Its `@ts-nocheck` header
+          # does not suppress CodeQL, which parses rather than type-checks.
+          config: |
+            paths-ignore:
+              - "**/routeTree.gen.ts"
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -1,0 +1,56 @@
+name: Scorecard supply-chain security
+
+# Scores the repository's own supply-chain posture: are actions pinned, is the
+# token scope minimal, are dependencies inventoried. This is the check that
+# notices a future workflow drifting away from the conventions the rest of
+# .github/ follows.
+
+on:
+  branch_protection_rule:
+  schedule:
+    - cron: "42 2 * * 0"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scorecard-${{ github.ref }}${{ github.event_name == 'schedule' && '-scheduled' || '' }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # upload SARIF to the code-scanning dashboard
+      id-token: write # publish results and obtain a badge
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code-scanning
+        if: github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: results.sarif

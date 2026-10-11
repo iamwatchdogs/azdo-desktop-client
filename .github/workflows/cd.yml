@@ -1,0 +1,242 @@
+name: CD
+
+# A tag is the only thing that can produce a release. `build` needs `ci`, and
+# `ci` runs the full main-pipeline workflow through workflow_call with
+# run-all: true, so path filtering cannot quietly skip the security gates on
+# the exact tree that ships.
+
+on:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VP_GIT_HOOKS: "0"
+
+# Never cancel a half-finished release: a cancelled build leaves a tag with no
+# artifact, which is worse than a slow one.
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: CI (reusable)
+    permissions:
+      contents: read
+    with:
+      run-all: true
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+    # `$/` would resolve this to the exact commit being run, which is strictly
+    # better than the workspace-relative form: the gate can never drift onto a
+    # different copy of ci.yml than the tag that triggered it. It is not used
+    # yet because actionlint does not parse it. The lint-workflows job in
+    # ci.yml pins actionlint v1.7.12, the latest release, and it rejects the
+    # syntax outright -- switching would turn this repository's own lint gate
+    # red to satisfy a style audit. Revisit when actionlint accepts `$/`.
+    #
+    # The suppression has to be a trailing comment on this line; zizmor does not
+    # associate a preceding comment block with a node.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: [ci]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write # OIDC, for signing the provenance attestation
+      attestations: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Targets come from apps/desktop/electron-builder.yml, not from here --
+        # this matrix only decides *which runner* produces which platform's
+        # target. Adding dmg to the linux row or nsis to the macOS row has to
+        # happen in electron-builder.yml, where the config already lives.
+        include:
+          - os: macos-latest
+            asset: dmg
+          - os: windows-latest
+            asset: nsis
+          - os: ubuntu-latest
+            asset: appimage
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Vite+, Node and dependencies
+        uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          node-version: "24"
+          cache: true
+
+      # These builds are intentionally unsigned: electron-builder.yml has no
+      # CSC_LINK / CSC_KEY_PASSWORD wired and no notarization step, so the
+      # honest output is an unsigned installer. macOS will show a Gatekeeper
+      # warning and Windows SmartScreen will too -- the release notes say so.
+      #
+      # CSC_IDENTITY_AUTO_DISCOVERY=false stops electron-builder from hunting
+      # for whatever certificate happens to live in the runner keychain, so an
+      # unsigned build cannot accidentally come out half-signed against an
+      # ambient identity. Add the signing secrets here when they exist.
+      - name: Build the installer
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          CSC_LINK: ""
+        run: pnpm build && pnpm dist
+
+      # electron-builder exits 0 having written nothing if a target silently
+      # matched no files, so assert the artifact is real before attesting it.
+      - name: Verify the artifact exists and is non-empty
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(apps/desktop/release/*)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::electron-builder produced no artifacts in apps/desktop/release"
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            if [ ! -s "$file" ]; then
+              echo "::error::$file is empty"
+              exit 1
+            fi
+            printf 'artifact: %s (%s bytes)\n' "$file" "$(stat -c %s "$file" 2>/dev/null || stat -f %z "$file")"
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: apps/desktop/release/*
+
+      - name: Upload installer as workflow artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: azure-devops-app-${{ matrix.asset }}
+          path: apps/desktop/release/*
+          if-no-files-found: error
+
+  release:
+    name: Publish to GitHub release
+    needs: [ci, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all installers
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Unsigned artifacts are the one thing a consumer cannot check by
+      # installing them, so ship a checksum they can. The provenance
+      # attestations produced by the build job cover the rest.
+      - name: Generate checksums
+        shell: bash
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          # Remove first so a re-run inside the same workspace cannot hash a
+          # stale SHA256SUMS.txt into the new one.
+          rm -f SHA256SUMS.txt
+          sha256sum ./* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Write the release notes
+        shell: bash
+        env:
+          # Quoted heredoc: the notes contain backticks, which an unquoted
+          # delimiter would run as command substitution. __REPO__ is filled in
+          # afterwards for the same reason.
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          ## Unsigned builds
+
+          These installers are **not code-signed or notarized**. macOS Gatekeeper
+          and Windows SmartScreen will warn on first launch. On macOS, right-click
+          the app and choose *Open* to get past the warning, or strip the
+          quarantine attribute:
+
+          ```
+          xattr -dr com.apple.quarantine "/Applications/Azure DevOps App.app"
+          ```
+
+          Verify an artifact against `SHA256SUMS.txt` before installing, then
+          confirm provenance:
+
+          ```
+          gh attestation verify <file> --repo __REPO__
+          ```
+          NOTES
+          sed -i "s|__REPO__|${REPO}|" notes.md
+
+      # `gh release` rather than a third-party release action. Every other
+      # `uses:` in this repository is an official action or a pinned revision of
+      # one, and a release publisher is the one step `gh` already does well
+      # enough -- dropping it removes a dependency that would otherwise have to
+      # be trusted with `contents: write`.
+      #
+      # Two trigger types reach this job: a tag push (no release exists yet) and
+      # `release: published` (the release already exists, created from the UI).
+      # Hence create-or-upload rather than create.
+      - name: Create or update the release and upload assets
+        shell: bash
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # This job never checks the repository out, so `gh` has no git remote
+          # to infer the repository from.
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+          # Written to the workspace root, deliberately outside dist/, so that
+          # the asset glob below cannot pick it up and attach the notes to the
+          # release as a downloadable file.
+          NOTES_FILE: ${{ github.workspace }}/notes.md
+        run: |
+          set -euo pipefail
+
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "::error::$NOTES_FILE is missing or empty"
+            exit 1
+          fi
+
+          shopt -s nullglob
+          assets=(./*)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "::error::no artifacts to upload"
+            exit 1
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; replacing its assets."
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            echo "Creating release $TAG."
+            gh release create "$TAG" "${assets[@]}" \
+              --generate-notes \
+              --notes-file "$NOTES_FILE"
+          fi
+
+          # Reporting the URL is a convenience, not the job. Without `|| true`
+          # an API hiccup on this last read turns a release that was already
+          # published into a red build.
+          gh release view "$TAG" --json url --jq .url || true

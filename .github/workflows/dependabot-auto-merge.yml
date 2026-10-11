@@ -1,0 +1,131 @@
+name: Dependabot auto-merge
+
+# Only semver-patch npm updates merge on their own. Everything else gets a
+# human, and the reasoning is per-ecosystem rather than a blanket refusal --
+# a gate whose exceptions are spelled out stays legible when it blocks
+# something unexpected.
+
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    name: Auto-merge Dependabot PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # pull_request_target runs with a privileged token against the *base*
+    # branch's workflow definition, so this guard is the whole security
+    # boundary. Two conditions: the author must be Dependabot's bot account
+    # (not merely a user with a similar name), and the head must be a branch in
+    # this repository (not a fork). A pull_request_target workflow must never
+    # check out or build the PR's own code -- this job does not, which is why
+    # it can be allowed to run at all.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.user.type == 'Bot' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    permissions:
+      contents: write # ref updates for `gh pr merge --auto`
+      pull-requests: write # `gh pr review --approve` and enabling auto-merge
+      issues: write # labels are served by the issues API
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add the dependabot label
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr edit "$PR_URL" --add-label "dependabot"
+
+      - name: Evaluate merge policy
+        id: policy
+        env:
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          NEW_VERSION: ${{ steps.metadata.outputs.new-version }}
+        run: |
+          set -euo pipefail
+
+          eligible=false
+          reason=""
+
+          if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
+            # An action's behaviour can change without its version changing: a
+            # moving tag, a compromised maintainer, a new default permission.
+            # zizmor and actionlint run on workflow changes, but neither
+            # executes the action, so a green pipeline is not evidence that a
+            # bumped action still does what its last version did.
+            reason="github-actions ecosystem is never auto-merged"
+
+          elif [ "$PACKAGE_ECOSYSTEM" = "npm" ]; then
+            # The only eligible class. A patch is the one change that is
+            # contractually behaviour-preserving, and it is still gated by the
+            # full CI suite before the merge completes.
+            #
+            # Worth noting what a green run does and does not prove here: the
+            # unit tests run on Linux, macOS and Windows, so a native-prebuild
+            # break on any of the three platforms surfaces. It does not prove
+            # the packaged app launches, because CI builds installers in cd.yml
+            # but never runs one.
+            if [ "$UPDATE_TYPE" = "version-update:semver-patch" ]; then
+              eligible=true
+              reason="semver-patch"
+            else
+              reason="update-type '${UPDATE_TYPE:-<empty>}' not eligible for npm"
+            fi
+
+          else
+            # Fail closed. An unrecognised ecosystem lands here rather than
+            # inheriting npm's rules.
+            reason="ecosystem '${PACKAGE_ECOSYSTEM:-<empty>}' has no auto-merge policy"
+          fi
+
+          {
+            echo "eligible=$eligible"
+            # A heredoc delimiter, not a bare `echo "reason=$reason"`, so a
+            # reason containing `=` or a newline cannot corrupt the
+            # GITHUB_OUTPUT parse.
+            echo "reason<<REASON_EOF"
+            echo "$reason"
+            echo "REASON_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Policy: eligible=$eligible ($reason)"
+
+      - name: Summarise the decision
+        if: always() && steps.policy.outputs.eligible != 'true'
+        env:
+          REASON: ${{ steps.policy.outputs.reason }}
+          NEW_VERSION: ${{ steps.metadata.outputs.new-version }}
+        run: |
+          echo "::notice::Not auto-merging${NEW_VERSION:+ $NEW_VERSION} -- $REASON"
+
+      - name: Approve and enable auto-merge
+        if: steps.policy.outputs.eligible == 'true'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh pr review --approve "$PR_URL"
+          # --auto queues the merge and completes only once branch protection
+          # is satisfied, so the required `CI Status` check still has to pass.
+          # --admin is never used: it bypasses exactly the protection this
+          # workflow is designed to respect.
+          gh pr merge --auto --squash "$PR_URL"

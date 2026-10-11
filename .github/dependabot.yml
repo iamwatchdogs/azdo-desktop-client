@@ -1,0 +1,119 @@
+version: 2
+
+updates:
+  # Every `uses:` in .github/workflows is pinned to a commit SHA with the
+  # release tag in a trailing comment. Dependabot reads that comment, so a new
+  # tag becomes a new SHA -- but the SHA never moves under a tag that a human
+  # did not intend.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      github-actions-minor-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - major
+
+  - package-ecosystem: npm
+    # All four directories, not just the root. This is a pnpm workspace
+    # (apps/*, packages/*) and Dependabot resolves one ecosystem entry per
+    # directory; omitting the app directories leaves their direct dependencies
+    # unmonitored.
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    # Catalog entries in pnpm-workspace.yaml are exact pins ("oxlint: 1.87.0"),
+    # not ranges. The default `widen` strategy would rewrite each bumped entry
+    # to a caret range, which is a style change smuggled in with a security
+    # bump and breaks the repo's pin-everything convention. `increase` keeps a
+    # pin a pin.
+    versioning-strategy: increase
+    groups:
+      # Patch and minor-major are kept apart on purpose. Three of the direct
+      # dependencies here (@napi-rs/keyring, ffi-rs, dbus-next) ship
+      # platform-native prebuilds, so a minor bump can swap a binary under a
+      # version number that reads as routine -- exactly what a human should
+      # look at.
+      npm-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      npm-minor-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - major
+
+  - package-ecosystem: npm
+    directory: /apps/desktop
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    versioning-strategy: increase
+    groups:
+      desktop-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      desktop-minor-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - major
+
+  - package-ecosystem: npm
+    directory: /apps/renderer
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    versioning-strategy: increase
+    groups:
+      renderer-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      renderer-minor-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - major
+
+  - package-ecosystem: npm
+    directory: /packages/shared
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    versioning-strategy: increase
+    groups:
+      shared-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      shared-minor-major:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - major

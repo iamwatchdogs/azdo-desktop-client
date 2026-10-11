@@ -1,6 +1,6 @@
 /**
- * Architecture guard (ts-morph): packages must not depend on apps, the renderer
- * must not import electron, and process code must not import react.
+ * ts-morph import guard: packages must not import apps, the renderer must not
+ * import electron, and process code must not import react.
  */
 import { existsSync } from "node:fs";
 import { relative, resolve } from "node:path";

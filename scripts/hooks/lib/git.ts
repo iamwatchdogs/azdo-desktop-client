@@ -5,7 +5,7 @@ function git(args: readonly string[], cwd: string): string {
   return execFileSync("git", args, { cwd, encoding: "utf8" });
 }
 
-/** Runs git in `cwd`, returning stdout or null when git exits non-zero. */
+/** Same, returning stdout or null when git exits non-zero. */
 export function gitQuiet(args: readonly string[], cwd: string): string | null {
   try {
     return execFileSync("git", args, {
@@ -18,7 +18,7 @@ export function gitQuiet(args: readonly string[], cwd: string): string | null {
   }
 }
 
-/** Runs git in `cwd`, returning raw stdout bytes or null on failure. */
+/** Raw stdout bytes, or null on failure. */
 export function gitBuffer(args: readonly string[], cwd: string): Buffer | null {
   try {
     return execFileSync("git", args, { cwd });
@@ -37,12 +37,12 @@ export function repoRoot(): string {
   return root.trim();
 }
 
-/** NUL-safe split for `git -z` style output. */
+/** NUL-safe split for `git -z` output. */
 function splitNul(text: string): string[] {
   return text.split("\0").filter((entry) => entry !== "");
 }
 
-/** Staged files (added, copied, modified, renamed). */
+/** Added, copied, modified or renamed. */
 export function stagedFiles(root: string): string[] {
   return splitNul(git(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"], root));
 }
@@ -52,14 +52,14 @@ export interface AddedLine {
   text: string;
 }
 
-/** File path of a `+++ b/path` diff header, or null. */
+/** `+++ b/path` header path, or null. */
 function diffHeaderPath(raw: string): string | null {
   if (!raw.startsWith("+++ ")) return null;
   const path = raw.slice(4);
   return path.startsWith("b/") ? path.slice(2) : path;
 }
 
-/** First line number of a `@@ -a,b +c,d @@` hunk header, or 0. */
+/** First new-file line of a `@@ -a,b +c,d @@` hunk, or 0. */
 function hunkStart(raw: string): number {
   if (!raw.startsWith("@@")) return 0;
   const match = /\+(\d+)/.exec(raw);
@@ -103,7 +103,7 @@ function appendAdded(result: Map<string, AddedLine[]>, file: string, entry: Adde
   else entries.push(entry);
 }
 
-/** Added (`+`) lines of one file across a diff selector. */
+/** One file's added (`+`) lines, with new-file line numbers. */
 export function addedLinesForFile(
   root: string,
   diffArgs: readonly string[],

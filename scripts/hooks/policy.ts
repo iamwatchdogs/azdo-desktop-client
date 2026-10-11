@@ -12,11 +12,8 @@ export interface Violation {
 }
 
 /**
- * Largest file allowed in a commit.
- *
- * 100 MiB matches GitHub's hard per-file limit, so anything this rejects would
- * be rejected by the remote anyway — better to fail at commit time with a
- * reason than at push time with a 413.
+ * 100 MiB matches GitHub's hard per-file limit, so anything rejected here would
+ * be rejected by the remote — better a commit-time reason than a push-time 413.
  */
 const MAX_COMMIT_FILE_BYTES = Number(process.env["ADO_HOOKS_MAX_FILE_BYTES"] ?? 100 * 1024 * 1024);
 
@@ -40,10 +37,9 @@ interface DebugRule {
   pattern: RegExp;
   label: string;
   /**
-   * Console output. Exempt in test files only, which embed `console.log`
-   * calls as fixture data. Runtime code has no path-based exemption:
-   * intentional logging uses `console.warn`/`error`/`info`, or opts a
-   * single line in with the allow marker.
+   * Console output, exempt in test files only (they use console.log as fixture
+   * data). Runtime code has no path-based exemption: intentional logging uses
+   * warn/error/info, or opts one line in with the allow marker.
    */
   consoleLog?: boolean;
   testFileOnly?: boolean;
@@ -61,8 +57,7 @@ const DEBUG_RULES: readonly DebugRule[] = [
 const DEBUG_ALLOW_MARKER = "debug-statements: allow";
 
 // `=======` alone is only a conflict marker in text-like files: it is also
-// valid setext underline and RST heading syntax, so flagging it in binary or
-// markup contexts produces noise people learn to ignore.
+// valid setext underline and RST heading syntax.
 const CONFLICT_MARKER = /^(?:<{7}\s|>{7}\s)/;
 const CONFLICT_BAR = /^={7}\s*$/;
 const CONFLICT_ALLOW_MARKER = "check-merge-conflict: allow";
@@ -101,7 +96,6 @@ function matchDebugRule(file: string, text: string): string | null {
   return rule?.label ?? null;
 }
 
-/** Exported for unit tests: the per-file half of the debug-statement rule. */
 export function debugViolationsInFile(file: string, lines: readonly AddedLine[]): Violation[] {
   return lines.flatMap((added) => {
     const message = matchDebugRule(file, added.text);
@@ -120,9 +114,8 @@ export function checkDebugStatements(root: string, files: readonly string[]): Vi
     files.filter((file) => CODE_FILE.test(file) && file !== SELF_PATH),
     STAGED_DIFF_ARGS,
   );
-  // Deliberately not gated on fileOptsOut: the marker exempts the line that
-  // carries it, not its whole file. A file-wide opt-out would let one marked
-  // line launder every other console.log committed alongside it.
+  // Not gated on fileOptsOut: the marker exempts the line carrying it, not its
+  // file. A file-wide opt-out would launder every console.log committed with it.
   return [...byFile].flatMap(([file, lines]) => debugViolationsInFile(file, lines));
 }
 
@@ -130,18 +123,15 @@ export function checkConflictMarkersStaged(root: string, files: readonly string[
   return scanConflictMarkers(root, files, STAGED_DIFF_ARGS);
 }
 
-/** Exported for unit tests: which files a debug-statement rule applies to. */
 export function debugRuleAppliesToFile(rule: DebugRule, file: string): boolean {
   return debugRuleApplies(rule, file);
 }
 
-/** Exported for unit tests. */
 export function isConflictMarker(file: string, text: string): boolean {
   if (CONFLICT_MARKER.test(text)) return true;
   return TEXT_FILE.test(file) && CONFLICT_BAR.test(text);
 }
 
-/** Exported for unit tests: the per-file half of the conflict-marker rule. */
 export function conflictViolationsInFile(file: string, lines: readonly AddedLine[]): Violation[] {
   return lines.flatMap((added) => {
     if (added.text.includes(CONFLICT_ALLOW_MARKER) || !isConflictMarker(file, added.text))
@@ -187,7 +177,7 @@ function privateKeyViolationsInFile(root: string, file: string): Violation[] {
   return [{ file, line, message: "private key detected" }];
 }
 
-/** Exported for unit tests: PEM/armour detection over already-read text. */
+/** PEM/armour detection over already-read text. */
 export function privateKeyViolationsInText(file: string, content: string): Violation[] {
   if (content.includes(KEY_ALLOW_MARKER)) return [];
   const pattern = PRIVATE_KEY_PATTERNS.find((candidate) => candidate.test(content));
@@ -205,10 +195,8 @@ export function checkPrivateKeys(root: string): Violation[] {
  *
  * A file exactly at the limit passes: the message says "exceeds", so flagging
  * the boundary would print "100.0 MiB exceeds 100 MiB limit" for a file that
- * did not exceed it.
- *
- * `size` of null means the blob could not be measured (deleted, or a path that
- * is not a blob), which is treated as "not oversized" rather than a failure.
+ * did not exceed it. A `size` of null (deleted, or not a blob) reads as
+ * "not oversized" rather than a failure.
  */
 export function largeFileViolation(file: string, size: number | null): Violation | null {
   if (size === null || size <= MAX_COMMIT_FILE_BYTES) return null;

@@ -42,8 +42,13 @@ export function conflictMarkersStaged(ctx: HookContext): Promise<CheckOutcome> {
  * flag markers already present on the other side of the range.
  */
 export function conflictMarkersInRange(ctx: HookContext): Promise<CheckOutcome> {
+  // A merge has no range to walk, but the index holds the resolved result, so
+  // scanning it catches markers that survived conflict resolution.
+  if (ctx.mode === "merge") {
+    return policyCheck(() => checkConflictMarkersStaged(ctx.root, ctx.changed));
+  }
   if (ctx.base === null) return Promise.resolve(skip("no push base resolved"));
-  return policyCheck(() => checkConflictMarkersInRange(ctx.root, `${ctx.base}...${ctx.tip}`));
+  return policyCheck(() => checkConflictMarkersInRange(ctx.root, `${ctx.base}...HEAD`));
 }
 
 /**

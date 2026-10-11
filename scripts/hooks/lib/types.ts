@@ -6,28 +6,31 @@ import type { Check, CheckOutcome } from "./runner.ts";
  * Config declares *what* runs; this object carries the *context* it runs
  * against. Every check is a pure function of (spec, context).
  */
+/** Which git operation is invoking the hook. */
+export type HookMode = "commit" | "push" | "merge";
+
 export interface HookContext {
   /** Absolute path to the repository root. */
   readonly root: string;
   /** Environment for spawned checks (local binaries first, colors off). */
   readonly env: NodeJS.ProcessEnv;
+  readonly mode: HookMode;
   /**
-   * Lower bound of the comparison range, or null when none could be
-   * determined. Push: the remote SHA. Merge: `HEAD`.
+   * Lower bound for comparisons.
+   *
+   * push:  the remote SHA, or null when it could not be resolved.
+   * merge: `HEAD` — the index already holds the resolved merge result, so HEAD
+   *        is what that result is measured against.
+   * commit: null (the staged diff is the comparison).
+   *
+   * `MERGE_HEAD` is deliberately absent: it does not exist yet when
+   * pre-merge-commit runs. Git writes the merge state after the hook returns
+   * and passes it no arguments, so merge checks read the index instead.
    */
   readonly base: string | null;
-  /**
-   * Upper bound of the comparison range. Push: `HEAD` (the commits being
-   * pushed). Merge: `MERGE_HEAD` (the commits being merged in).
-   *
-   * Ranges are derived as `base..tip` (commit list) and `base...tip` (content),
-   * so this single field makes pre-push and pre-merge expressible with the same
-   * checks.
-   */
-  readonly tip: string;
-  /** Files changed in `base...tip`; empty when `base` is null. */
+  /** Files whose content this operation introduces. */
   readonly changed: readonly string[];
-  /** Files staged for the pending commit; pre-commit only. */
+  /** Files staged for the pending commit. */
   readonly staged: readonly string[];
 }
 

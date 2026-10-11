@@ -12,16 +12,15 @@ import { repoRoot } from "./lib/git.ts";
 const root = repoRoot();
 const ctx = mergeContext(root);
 
-// No MERGE_HEAD means this is not a merge in progress (for example a manual
-// invocation). Nothing to validate, and failing here would be noise.
-if (ctx === null) {
-  process.stderr.write("pre-merge-commit: no merge in progress; skipping\n");
+// The index already holds the resolved merge result, so the comparison is
+// against HEAD. An empty index means this fired outside a merge (a manual
+// invocation, or a merge that changed nothing) — nothing to validate.
+if (ctx.changed.length === 0) {
+  process.stderr.write("pre-merge-commit: nothing staged; skipping\n");
   process.exit(0);
 }
 
-process.stderr.write(
-  `pre-merge-commit: range ${ctx.base}...${ctx.tip.slice(0, 8)} (${ctx.changed.length} files)\n\n`,
-);
+process.stderr.write(`pre-merge-commit: merge result vs HEAD (${ctx.changed.length} files)\n\n`);
 
 process.exit(
   await runChecks({ label: "pre-merge-commit", checks: planChecks(preMergeCommit, ctx) }),

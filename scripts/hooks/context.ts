@@ -41,8 +41,8 @@ export function commitContext(root: string): HookContext {
   return {
     root,
     env: hookEnv(root),
+    mode: "commit",
     base: null,
-    tip: "HEAD",
     changed: [],
     staged: stagedFiles(root),
   };
@@ -52,8 +52,8 @@ export function pushContext(root: string, base: string | null): HookContext {
   return {
     root,
     env: hookEnv(root),
+    mode: "push",
     base,
-    tip: "HEAD",
     changed: base === null ? [] : changedFilesInRange(root, `${base}...HEAD`),
     staged: [],
   };
@@ -62,20 +62,21 @@ export function pushContext(root: string, base: string | null): HookContext {
 /**
  * Context for `pre-merge-commit`.
  *
- * The range runs `HEAD...MERGE_HEAD`, so `changed` is exactly the content the
- * merge will introduce into the current branch, and secret scanning covers
- * `HEAD..MERGE_HEAD` — the incoming commits, not the ones already here.
+ * `MERGE_HEAD` does not exist yet when this hook runs — git writes the merge
+ * state afterwards and passes no arguments. What is available is the index: the
+ * merge has already been resolved and written, so `git diff --cached HEAD` is
+ * exactly the content this merge introduces. That also holds for a merge
+ * resolved by hand after a conflict.
  */
-export function mergeContext(root: string): HookContext | null {
-  const mergeHead = gitQuiet(["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], root)?.trim();
-  if (mergeHead === undefined || mergeHead === "") return null;
+export function mergeContext(root: string): HookContext {
+  const staged = stagedFiles(root);
   return {
     root,
     env: hookEnv(root),
+    mode: "merge",
     base: "HEAD",
-    tip: mergeHead,
-    changed: changedFilesInRange(root, `HEAD...${mergeHead}`),
-    staged: [],
+    changed: staged,
+    staged,
   };
 }
 

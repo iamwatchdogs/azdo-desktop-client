@@ -16,16 +16,21 @@ import type { HandlerSpec, HookContext } from "../lib/types.ts";
  * point: someone else's secrets, already scanned.
  */
 export async function secretScan(ctx: HookContext, spec: HandlerSpec): Promise<CheckOutcome> {
+  // A merge has no commit range to walk (MERGE_HEAD does not exist yet), so
+  // scan the merge result sitting in the index instead. That also catches
+  // secrets which only appear after conflict resolution.
   const args =
-    ctx.base === null
-      ? ["git", "--no-banner", "--redact=50", "--exit-code=1"]
+    ctx.mode === "merge"
+      ? ["protect", "--staged", "--redact=50", "--exit-code=1"]
       : [
           "git",
           "--no-banner",
           "--redact=50",
           "--exit-code=1",
-          "--log-opts",
-          `${ctx.base}..${ctx.tip}`,
+          // Two-dot on purpose: the commits being pushed, not everything since
+          // the branch point. Three-dot would drag in commits the remote
+          // already has — someone else's secrets, already scanned.
+          ...(ctx.base === null ? [] : ["--log-opts", `${ctx.base}..HEAD`]),
         ];
 
   // `.gitleaks.toml` carries the default rules plus a narrow test-fixture
@@ -124,12 +129,14 @@ export async function coderabbit(ctx: HookContext, spec: HandlerSpec): Promise<C
  * resolves before trusting an affected-test run.
  */
 export function shallowCloneGuard(ctx: HookContext): CheckOutcome | null {
-  if (ctx.base === null) return null;
-  if (mergeBaseResolves(ctx.root, ctx.base, ctx.tip)) return null;
+  // Only a push compares against a remote range. A merge compares the index
+  // against HEAD, so there is no merge-base to resolve.
+  if (ctx.mode !== "push" || ctx.base === null) return null;
+  if (mergeBaseResolves(ctx.root, ctx.base)) return null;
   return {
     status: "failed",
     output:
-      `cannot compute a merge base over ${ctx.base.slice(0, 8)}..${ctx.tip.slice(0, 8)} — affected-test selection ` +
+      `cannot compute a merge base for ${ctx.base.slice(0, 8)} — affected-test selection ` +
       "would silently run nothing.\n  Fetch full history first:  git fetch --unshallow",
   };
 }

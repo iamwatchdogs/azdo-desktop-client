@@ -1,11 +1,11 @@
 import type { CapabilityResult } from "@ado/shared";
 
-// Lazy imports keep a missing platform prebuild from crashing the main process.
+// Imports are lazy: a missing platform prebuild must not kill the main process.
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** @napi-rs/keyring — OS keychain (Keychain / Credential Manager / Secret Service). */
+/** @napi-rs/keyring — Keychain / Credential Manager / Secret Service. */
 export async function getSecret(service: string, account: string): Promise<string | null> {
   const { Entry } = await import("@napi-rs/keyring");
   return new Entry(service, account).getPassword();
@@ -16,7 +16,7 @@ export async function setSecret(service: string, account: string, secret: string
   new Entry(service, account).setPassword(secret);
 }
 
-/** @crowecawcaw/xa11y — cross-platform accessibility tree (AX / UIA / AT-SPI). */
+/** @crowecawcaw/xa11y — accessibility tree (AX / UIA / AT-SPI). */
 export async function checkAccessibility(): Promise<CapabilityResult> {
   let xa11y: typeof import("@crowecawcaw/xa11y");
   try {
@@ -36,11 +36,11 @@ export async function checkAccessibility(): Promise<CapabilityResult> {
   }
 }
 
-/** dbus-next — Linux desktop integration over the session bus. */
+/** dbus-next — Linux session bus. */
 export async function probeDbus(): Promise<CapabilityResult> {
   try {
     const { sessionBus } = await import("dbus-next");
-    // sessionBus() starts connecting immediately; MessageBus emits connect/error.
+    // sessionBus() starts connecting now; the bus emits connect/error.
     const bus = sessionBus();
     const connected = await new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => resolve(false), 2_000);
@@ -66,7 +66,7 @@ export async function probeDbus(): Promise<CapabilityResult> {
   }
 }
 
-/** ffi-rs — raw FFI probe: resolve getpid() through libSystem / libc / kernel32. */
+/** ffi-rs — resolve getpid() through libSystem / libc / kernel32. */
 export async function probeFfi(): Promise<CapabilityResult> {
   try {
     const { DataType, open, load, close } = await import("ffi-rs");

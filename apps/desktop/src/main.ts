@@ -107,7 +107,7 @@ app.on("window-all-closed", () => {
   }
 });
 
-// Inert until a publish provider is configured in electron-builder.yml.
+// Inert until electron-builder.yml gains a publish provider.
 if (app.isPackaged) {
   autoUpdater.logger = console;
   autoUpdater.on("error", (error: Error) => {

@@ -5,8 +5,8 @@ copyright: Copyright © 2026
 directories:
   output: release
 
-# node_modules production deps are included automatically; these entries add
-# the bundles the main process loads from disk at runtime.
+# node_modules production deps ship automatically; these are the bundles the
+# main process loads from disk at runtime.
 files:
   - dist-electron/**
   - dist/renderer/**

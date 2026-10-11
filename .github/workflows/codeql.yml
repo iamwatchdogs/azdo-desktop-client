@@ -2,30 +2,24 @@ name: "CodeQL Advanced"
 
 # Two languages, both build-mode: none.
 #
-# Do not add a build step -- not `pnpm build`, not `tsc`, not `autobuild`. It is
-# not that compiling is unnecessary here; it is that compiling *breaks* the
-# scan. CodeQL's JavaScript/TypeScript extractor parses the source tree on its
-# own, and supplying a build command overrides that extractor, which produces an
-# empty database and a green run that found nothing. GitHub's own wording:
-# "When you run `database create` for JavaScript, TypeScript, Python, and Ruby,
-# you should not specify a `--command` option. Otherwise this overrides the
-# normal extractor invocation, which will create an empty database." `--build-mode`
-# is likewise documented for C/C++, C#, Java and Rust; it is not a knob for
-# interpreted languages.
+# Do not add a build step -- not `pnpm build`, not `tsc`, not `autobuild`.
+# Compiling does not help the scan, it breaks it: a `--command` overrides
+# CodeQL's own JS/TS extractor and yields an empty database and a green run that
+# found nothing. GitHub says so explicitly -- "you should not specify a
+# `--command` option ... which will create an empty database". `--build-mode`
+# is likewise documented for C/C++, C#, Java and Rust only, not interpreted
+# languages.
 #
-# There is also nothing to gain. CodeQL's TypeScript support does its own
-# source-local type inference and never consults `tsc`'s type graph, so a
-# successful compile adds no analysis input. The one thing a build *would*
-# surface -- generated files -- is handled by exclusion instead, further down.
+# Nothing is gained either: CodeQL's TypeScript support does its own
+# source-local inference and never reads tsc's type graph. Generated files are
+# handled by exclusion below instead.
 #
-# GitHub Actions is the other language: the workflow definitions are where a
-# template injection or an unpinned `uses:` in this repository would actually
-# live. `build-mode` is a per-job input that only applies when one language is
-# analysed per job, which is what the matrix below does.
+# GitHub Actions is the other language: a template injection or an unpinned
+# `uses:` would live in the workflow definitions. `build-mode` is a per-job
+# input, which is why each language gets its own matrix row.
 #
-# `security-and-quality` rather than the default `security` set: it adds the
-# maintainability queries, and an alert from those is as cheap to triage here as
-# a real one.
+# `security-and-quality` over the default `security`: it adds the
+# maintainability queries, and triaging those costs the same as a real alert.
 
 on:
   push:
@@ -76,13 +70,12 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-and-quality
-          # routeTree.gen.ts is written by @tanstack/router-plugin during the
-          # build, is committed, and is already excluded from oxfmt
-          # (vite.config.ts fmt.ignorePatterns), knip and language stats
-          # (.gitattributes). Scanning it is inconsistent with the rest of the
-          # toolchain: it is a flat list of imports and route literals that no
-          # security query has anything to say about. Its `@ts-nocheck` header
-          # does not suppress CodeQL, which parses rather than type-checks.
+          # routeTree.gen.ts is written by @tanstack/router-plugin, committed, and
+          # already excluded from oxfmt (vite.config.ts fmt.ignorePatterns),
+          # knip and language stats (.gitattributes). Scanning it contradicts the
+          # rest of the toolchain: it is a flat list of imports and route
+          # literals no security query has anything to say about. Its
+          # `@ts-nocheck` header does not help -- CodeQL parses, not type-checks.
           config: |
             paths-ignore:
               - "**/routeTree.gen.ts"

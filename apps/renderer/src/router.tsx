@@ -5,7 +5,7 @@ import { routeTree } from "./routeTree.gen";
 export const router = createRouter({
   routeTree,
   defaultPreload: "intent",
-  // file:// has no meaningful pathname; the hash keeps routing working when packaged.
+  // file:// has no usable pathname; hash history survives packaging.
   history: createHashHistory(),
 });
 

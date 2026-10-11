@@ -38,7 +38,7 @@ pnpm dev         # renderer dev server + main/preload watch build + Electron
 | `pnpm test`             | Vitest in every workspace                                                                                                                      |
 | `pnpm test:e2e`         | Playwright Electron smoke test on the built app                                                                                                |
 | `pnpm typecheck`        | `tsc --noEmit` per workspace (TypeScript 7 native)                                                                                             |
-| `pnpm knip`             | Unused files, dependencies, exports                                                                                                            |
+| `vp run knip`           | Unused files, dependencies, exports                                                                                                            |
 | `pnpm check:complexity` | Cognitive/cyclomatic complexity gate (`oxlint-plugin-complexity`)                                                                              |
 | `pnpm dist`             | electron-builder packaging                                                                                                                     |
 
@@ -140,10 +140,9 @@ resolves to a single copy.
   **pre-push** — resolves the push base and exports it as `GITHOOK_BASE`, refuses
   to run if a security scanner is missing (**fail closed** — a scanner that
   cannot run must never report as passing), then `vp run push-gate`:
-  `complexity`, `typecheck:all`, `arch-check`, `knip`, `secrets` (gitleaks),
-  `deps` (osv-scanner), `sast` (semgrep), `unit-tests` (vitest, narrowed to the
-  push range). The heavy scanners are ordered via `dependsOn` so they never
-  overlap — running them together OOM-kills them on smaller machines.
+  `complexity`, `typecheck:all`, `arch-check`, `knip`, `secrets` (gitleaks) and
+  `tests:all`. `sast` (semgrep) and `deps` (osv-scanner) are declared but parked
+  out of the gate; run them by hand with `vp run sast` / `vp run deps`.
   **pre-merge-commit** — guards the merge commit. Git runs it only from the
   `git merge` builtin; when a merge conflicts you finish with `git commit`,
   which runs pre-commit instead and applies the same checks. The case it adds:
@@ -156,9 +155,9 @@ resolves to a single copy.
   - `.semgrep/` holds the deterministic SAST rules used by the pre-push gate.
   - `.gitleaks.toml` carries gitleaks' default rules plus a narrow exception for
     test files, which embed literal key markers as fixtures.
-  - `policy.ts` enforces a 500 MB staged-blob limit; override with
-    `ADO_HOOKS_MAX_FILE_BYTES`, and blocks `debugger`, focused/skipped tests,
-    and `console.log`/`debug`/`trace`/`dir`/`time*` on staged lines.
+  - `policy.ts` enforces a 100 MiB staged-blob limit (GitHub's per-file cap);
+    override with `ADO_HOOKS_MAX_FILE_BYTES`, and blocks `debugger`, focused/skipped
+    tests, and `console.log`/`debug`/`trace`/`dir`/`time*` on staged lines.
 
 - **Console policy**: oxlint 1.87 ships no console rule (`no-console` and
   `unicorn/no-console` both fail to resolve, and an unknown rule is ignored
@@ -177,7 +176,7 @@ resolves to a single copy.
   switch to `1440` (t3code's policy) and maintain a `minimumReleaseAgeExclude` list if
   you want the supply-chain age gate. `permissions` denies `@tanstack/router-plugin`'s
   bundled agent skills so they never land in this repo.
-- **Architecture guard**: `pnpm arch:check` (ts-morph) fails on packages→apps imports,
+- **Architecture guard**: `vp run arch-check` (ts-morph) fails on packages→apps imports,
   renderer→electron imports, and React in process code. It runs on every push.
 
 ## Packaging

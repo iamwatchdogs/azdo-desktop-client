@@ -1,4 +1,4 @@
-// Copies the renderer bundle into dist/renderer so electron-builder can package it.
+// Renderer bundle -> dist/renderer, so electron-builder can package it.
 import { cpSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 

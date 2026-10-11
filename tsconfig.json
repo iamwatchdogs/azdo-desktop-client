@@ -4,7 +4,14 @@
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // Same two gaps scripts/tsconfig.json and apps/renderer/tsconfig.json
+    // close for their own files: hook entrypoints import explicit .ts
+    // specifiers for native type stripping, and the renderer aliases `~`.
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "~/*": ["./apps/renderer/src/*"]
+    }
   },
   "include": ["apps/**/*", "packages/**/*", "scripts/**/*", "*.config.ts"]
 }

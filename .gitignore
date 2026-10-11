@@ -10,18 +10,29 @@ release
 # toolchain caches
 .vite-plus
 
+# secrets
+.env
+.env.*
+
 # test artifacts
 playwright-report
 test-results
 blob-report
 .playwright
+coverage
+*.lcov
+
+# logs
+*.log
 
 # codacy-cli local logs
 .codacy/logs/
 
 # os / editor
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
 
-
-#Ignore insiders AI rules
+# Ignore insiders AI rules
 .github/instructions/codacy.instructions.md

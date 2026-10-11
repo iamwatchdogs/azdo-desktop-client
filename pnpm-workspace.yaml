@@ -2,8 +2,8 @@ packages:
   - apps/*
   - packages/*
 
-# pnpm 11+ successor to onlyBuiltDependencies.
-# true = the package's install script may run; false = pnpm 10 behavior (skipped).
+# pnpm 11+ successor to onlyBuiltDependencies. true = the package's install
+# script may run; false = pnpm 10 behaviour (skipped).
 allowBuilds:
   "@crowecawcaw/xa11y": true
   "@napi-rs/keyring": true
@@ -19,8 +19,8 @@ permissions:
     build: false
     skills: false
 
-# Disables pnpm 12's default 24h freshness gate so pinned latest versions install
-# deterministically. t3code keeps the gate and maintains an exclusion allowlist.
+# Disables pnpm 12's 24h freshness gate so pinned versions install
+# deterministically. t3code keeps the gate and maintains an exclusion list.
 minimumReleaseAge: 0
 
 overrides:

@@ -1,9 +1,8 @@
 name: CD
 
 # A tag is the only thing that can produce a release. `build` needs `ci`, and
-# `ci` runs the full main-pipeline workflow through workflow_call with
-# run-all: true, so path filtering cannot quietly skip the security gates on
-# the exact tree that ships.
+# `ci` runs the full main pipeline through workflow_call with run-all: true, so
+# path filtering cannot skip the security gates on the tree that ships.
 
 on:
   push:
@@ -34,15 +33,15 @@ jobs:
       run-all: true
     secrets:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-    # `$/` would resolve this to the exact commit being run, which is strictly
-    # better than the workspace-relative form: the gate can never drift onto a
-    # different copy of ci.yml than the tag that triggered it. It is not used
-    # yet because actionlint does not parse it. The lint-workflows job in
-    # ci.yml pins actionlint v1.7.12, the latest release, and it rejects the
-    # syntax outright -- switching would turn this repository's own lint gate
-    # red to satisfy a style audit. Revisit when actionlint accepts `$/`.
+    # `$/` would pin the exact commit being run, which is strictly better than the
+    # workspace-relative form: the gate can never drift onto a different ci.yml
+    # than the tag that triggered it. Not used yet because actionlint does not
+    # parse it. The lint-workflows job in ci.yml pins actionlint v1.7.12, the
+    # latest release, and it rejects the syntax outright -- switching would turn
+    # this repository's own lint gate red to satisfy a style audit. Revisit when
+    # actionlint accepts `$/`.
     #
-    # The suppression has to be a trailing comment on this line; zizmor does not
+    # The suppression must stay a trailing comment on this line; zizmor does not
     # associate a preceding comment block with a node.
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
 
@@ -59,10 +58,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Targets come from apps/desktop/electron-builder.yml, not from here --
-        # this matrix only decides *which runner* produces which platform's
-        # target. Adding dmg to the linux row or nsis to the macOS row has to
-        # happen in electron-builder.yml, where the config already lives.
+        # Targets come from electron-builder.yml, not here -- this matrix only picks
+        # the runner for each platform's target. Adding dmg to the linux row has
+        # to happen in electron-builder.yml, where the config already lives.
         include:
           - os: macos-latest
             asset: dmg
@@ -83,15 +81,15 @@ jobs:
           node-version: "24"
           cache: true
 
-      # These builds are intentionally unsigned: electron-builder.yml has no
-      # CSC_LINK / CSC_KEY_PASSWORD wired and no notarization step, so the
-      # honest output is an unsigned installer. macOS will show a Gatekeeper
-      # warning and Windows SmartScreen will too -- the release notes say so.
+      # Intentionally unsigned: electron-builder.yml wires no CSC_LINK /
+      # CSC_KEY_PASSWORD and there is no notarization step, so the honest output
+      # is an unsigned installer that Gatekeeper and SmartScreen both warn on.
+      # The release notes say so.
       #
-      # CSC_IDENTITY_AUTO_DISCOVERY=false stops electron-builder from hunting
-      # for whatever certificate happens to live in the runner keychain, so an
-      # unsigned build cannot accidentally come out half-signed against an
-      # ambient identity. Add the signing secrets here when they exist.
+      # CSC_IDENTITY_AUTO_DISCOVERY=false stops electron-builder hunting for
+      # whatever certificate lives in the runner keychain, so an unsigned build
+      # cannot come out half-signed against an ambient identity. Add the signing
+      # secrets here when they exist.
       - name: Build the installer
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -146,15 +144,14 @@ jobs:
           merge-multiple: true
 
       # Unsigned artifacts are the one thing a consumer cannot check by
-      # installing them, so ship a checksum they can. The provenance
-      # attestations produced by the build job cover the rest.
+      # installing them, so ship a checksum. The attestations cover the rest.
       - name: Generate checksums
         shell: bash
         working-directory: dist
         run: |
           set -euo pipefail
-          # Remove first so a re-run inside the same workspace cannot hash a
-          # stale SHA256SUMS.txt into the new one.
+          # Remove first so a re-run in the same workspace cannot hash a stale
+          # SHA256SUMS.txt into the new one.
           rm -f SHA256SUMS.txt
           sha256sum ./* > SHA256SUMS.txt
           cat SHA256SUMS.txt
@@ -189,15 +186,13 @@ jobs:
           NOTES
           sed -i "s|__REPO__|${REPO}|" notes.md
 
-      # `gh release` rather than a third-party release action. Every other
-      # `uses:` in this repository is an official action or a pinned revision of
-      # one, and a release publisher is the one step `gh` already does well
-      # enough -- dropping it removes a dependency that would otherwise have to
-      # be trusted with `contents: write`.
+      # `gh release` rather than a release action: every other `uses:` here is an
+      # official action or a pinned revision of one, and `gh` already publishes
+      # well enough -- dropping it removes a dependency trusted with
+      # `contents: write`.
       #
-      # Two trigger types reach this job: a tag push (no release exists yet) and
-      # `release: published` (the release already exists, created from the UI).
-      # Hence create-or-upload rather than create.
+      # Two triggers reach this job: a tag push (no release yet) and
+      # `release: published` (created from the UI). Hence create-or-upload.
       - name: Create or update the release and upload assets
         shell: bash
         working-directory: dist
@@ -237,6 +232,6 @@ jobs:
           fi
 
           # Reporting the URL is a convenience, not the job. Without `|| true`
-          # an API hiccup on this last read turns a release that was already
-          # published into a red build.
+          # an API hiccup on this last read turns an already-published release
+          # into a red build.
           gh release view "$TAG" --json url --jq .url || true

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AppSettingsSchema, DEFAULT_APP_SETTINGS, type Theme } from "./settings";
+import { AppSettingsSchema, DEFAULT_APP_SETTINGS, type Theme } from "../src/settings";
 
 describe("AppSettingsSchema", () => {
   it("applies defaults for missing fields", () => {

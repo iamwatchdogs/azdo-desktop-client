@@ -8,7 +8,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  // Loaded over file:// when packaged, so asset URLs must be relative.
+  // Loaded over file:// when packaged, so asset URLs stay relative.
   base: "./",
   plugins: [
     tanstackRouter({
@@ -30,7 +30,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    // Electron's BrowserWindow needs the HMR socket pinned for a reliable connection.
+    // Electron's BrowserWindow needs the HMR socket pinned.
     hmr: {
       protocol: "ws",
       host: "localhost",
@@ -44,7 +44,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["test/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
+    include: ["test/**/*.test.{ts,tsx}"],
     testTimeout: 15_000,
   },
 });

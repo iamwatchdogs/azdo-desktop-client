@@ -1,46 +1,43 @@
 # actionlint configuration.
 #
-# ## Why this file exists
+# ## Why
 #
-# `.github/workflows/ci.yml` wraps its five static-analysis steps in a
-# `parallel:` block. That is correct and intentional: GitHub shipped parallel
-# steps on 2026-06-25, and those checks are independent and read-only.
+# ci.yml wraps five static-analysis steps in a `parallel:` block. That is
+# intentional: GitHub shipped parallel steps on 2026-06-25 and those checks are
+# independent and read-only.
 #
-# actionlint v1.7.12 (the newest release, and the version the lint-workflows job
-# pins) cannot parse `parallel`. Every block produces exactly one error:
+# actionlint v1.7.12 -- the newest release, and what lint-workflows pins --
+# cannot parse `parallel`. Every block yields one error:
 #
 #   step must run script with "run" section or run action with "uses" section
 #
-# which fails the job, and through it `CI Status`, on every PR and every release.
+# which fails the job, and through it `CI Status`, on every PR and release.
 #
-# ## What this suppression actually costs
+# ## What the suppression costs
 #
-# More than it looks. Because actionlint does not understand the structure, it
-# does not see the steps *inside* a `parallel:` block as steps at all. They are
-# therefore not shellchecked, and their expressions are not context-checked.
+# Because actionlint does not understand the structure, it does not see steps
+# *inside* a `parallel:` block as steps: they are neither shellchecked nor
+# context-checked. Verified, not assumed -- the same `run: echo $FOO` is
+# reported as SC2086 under `jobs.<id>.steps` and as nothing one level down
+# inside `parallel:`.
 #
-# This was verified rather than assumed: the same `run: echo $FOO` is reported
-# as SC2086 when placed under `jobs.<id>.steps` directly, and reported as
-# nothing at all when moved one level down into a `parallel:` block.
-#
-# So the blind spot is bounded to steps nested inside `parallel:` blocks.
-# Everything else in every workflow is still fully checked -- confirmed by
-# keeping a deliberate SC2086 outside a parallel block and seeing it still fail.
-#
-# GitHub's own parser independently rejects a malformed step, so the residual
-# risk is a lint gap, not a broken pipeline.
+# So the blind spot is bounded to steps nested in `parallel:` blocks.
+# Everything else is still fully checked -- confirmed by keeping a deliberate
+# SC2086 outside a parallel block and seeing it still fail. GitHub's own parser
+# independently rejects a malformed step, so the residual risk is a lint gap,
+# not a broken pipeline.
 #
 # ## Removing this
 #
-# Delete this file once actionlint parses `parallel:` blocks. There is no
-# upstream release that does yet, so this cannot be dated -- it goes away when
-# `raven-actions/actionlint` with a supporting `version:` lands. Until then, the
-# alternative is dropping `parallel:` from ci.yml and accepting sequential steps.
+# Delete the file once actionlint parses `parallel:`. No upstream release does
+# yet, so it cannot be dated; it goes away when `raven-actions/actionlint` with
+# a supporting `version:` lands. Until then the alternative is dropping
+# `parallel:` from ci.yml and accepting sequential steps.
 
 paths:
-  # Deliberately not scoped to ci.yml: the limitation is a property of
-  # actionlint, not of one file, and scoping it would make the next `parallel:`
-  # block a fresh, unexplained failure.
+  # Not scoped to ci.yml: the limitation is a property of actionlint, not of
+  # one file, and scoping would make the next `parallel:` block a fresh,
+  # unexplained failure.
   .github/workflows/**/*.{yml,yaml}:
     ignore:
       - 'step must run script with "run" section or run action with "uses" section'

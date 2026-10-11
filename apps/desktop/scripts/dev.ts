@@ -1,7 +1,4 @@
-/**
- * Dev runner: renderer dev server + main/preload watch build + Electron.
- * Ctrl+C tears everything down.
- */
+/** Dev runner: renderer dev server + main/preload watch build + Electron. Ctrl+C kills all. */
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, watch } from "node:fs";
 import { createRequire } from "node:module";

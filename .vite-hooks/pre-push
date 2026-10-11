@@ -1,17 +1,17 @@
 #!/usr/bin/env sh
 # Vite+ hook shim: the pre-push gate.
 #
-# The checks themselves are declared as tasks in vite.config.ts under
-# run.tasks; `vp run push-gate` runs them concurrently and reports them
-# together. This script only does the two things Vite+ does not provide:
+# The checks are tasks in vite.config.ts; `vp run push-gate` runs them
+# concurrently and reports them together. This script does the two things Vite+
+# does not provide:
 #
-#   1. Resolve the SHA this push is compared against, and export it as
-#      GITHOOK_BASE so range-scoped tasks (gitleaks, semgrep) work.
+#   1. Resolve the SHA this push is compared against and export it as
+#      GITHOOK_BASE, so range-scoped tasks (gitleaks, semgrep) work.
 #   2. Refuse to run if a security scanner is missing (fail closed).
 #
-# Tests are NOT selected here: push-gate runs `tests:all`, the unfiltered
-# suite. Unlike pre-commit there is no cheap "only what changed" shortcut
-# here — the whole point of pushing is to prove the branch is green.
+# Tests are NOT selected here: push-gate runs `tests:all`, the unfiltered suite.
+# Unlike pre-commit there is no cheap "only what changed" shortcut — the point
+# of pushing is to prove the branch green.
 #
 # Bypasses: VP_GIT_HOOKS=0 (per docs/guide/commit-hooks.md).
 cd "$(git rev-parse --show-toplevel)" || exit 1
@@ -39,8 +39,8 @@ if [ -z "$base" ]; then
   fi
 fi
 if [ -z "$base" ]; then
-  # Fall back to the root commit: correct but wide, so affected-test selection
-  # degrades to "everything". Warn rather than pretend the range is tight.
+  # Root commit: correct but wide, so affected-test selection degrades to
+  # "everything". Warn rather than pretend the range is tight.
   base=$(git rev-list --max-parents=0 HEAD 2>/dev/null | head -1)
   echo "pre-push: no upstream found; comparing against the root commit" >&2
 fi
@@ -52,10 +52,10 @@ fi
 # Fail closed on the security gates: a scanner that is not installed must not
 # silently become a passing check.
 #
-# osv-scanner is deliberately absent from this list. The `deps` task is parked
-# out of `push-gate` (see vite.config.ts) because the lockfile carries known
-# pre-existing advisories, so requiring the binary here would fail every push
-# for a check that no longer runs.
+# osv-scanner is deliberately absent. The `deps` task is parked out of
+# `push-gate` (vite.config.ts) because the lockfile carries known pre-existing
+# advisories, so requiring the binary would fail every push for a check that no
+# longer runs.
 missing=""
 for tool in gitleaks semgrep; do
   command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -70,7 +70,7 @@ GITHOOK_BASE="$base"
 export GITHOOK_BASE
 echo "pre-push: comparing ${base}..HEAD" >&2
 
-# Concurrency is declared in vite.config.ts, not on this command line: the
-# memory-heavy scanners are ordered via dependsOn so they never overlap, which
-# OOM-killed them (exit 137) on an 8 GB machine.
+# Concurrency is declared in vite.config.ts, not here: the memory-heavy scanners
+# are ordered via dependsOn so they never overlap, which OOM-killed them
+# (exit 137) on an 8 GB machine.
 exec vp run push-gate

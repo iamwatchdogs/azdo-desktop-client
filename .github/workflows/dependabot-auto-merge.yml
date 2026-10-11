@@ -21,13 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # pull_request_target runs with a privileged token against the *base*
-    # branch's workflow definition, so this guard is the whole security
-    # boundary. Two conditions: the author must be Dependabot's bot account
-    # (not merely a user with a similar name), and the head must be a branch in
-    # this repository (not a fork). A pull_request_target workflow must never
-    # check out or build the PR's own code -- this job does not, which is why
-    # it can be allowed to run at all.
+    # pull_request_target runs a privileged token against the *base* branch's
+    # workflow, so this guard is the whole security boundary: the author must be
+    # Dependabot's bot account (not a similar-looking user) and the head must be
+    # a branch in this repo, not a fork. It never checks out or builds the PR's
+    # own code -- which is what allows it to run at all.
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.user.type == 'Bot' &&
@@ -66,23 +64,22 @@ jobs:
           reason=""
 
           if [ "$PACKAGE_ECOSYSTEM" = "github-actions" ]; then
-            # An action's behaviour can change without its version changing: a
-            # moving tag, a compromised maintainer, a new default permission.
-            # zizmor and actionlint run on workflow changes, but neither
-            # executes the action, so a green pipeline is not evidence that a
-            # bumped action still does what its last version did.
+            # An action's behaviour can change without its version changing: a moving
+            # tag, a compromised maintainer, a new default permission. zizmor
+            # and actionlint run on workflow changes but neither executes the
+            # action, so a green pipeline is no evidence a bumped action still
+            # does what its last version did.
             reason="github-actions ecosystem is never auto-merged"
 
           elif [ "$PACKAGE_ECOSYSTEM" = "npm" ]; then
-            # The only eligible class. A patch is the one change that is
-            # contractually behaviour-preserving, and it is still gated by the
-            # full CI suite before the merge completes.
+            # The only eligible class. A patch is the one contractually
+            # behaviour-preserving change, and it is still gated by the full CI
+            # suite before the merge completes.
             #
-            # Worth noting what a green run does and does not prove here: the
-            # unit tests run on Linux, macOS and Windows, so a native-prebuild
-            # break on any of the three platforms surfaces. It does not prove
-            # the packaged app launches, because CI builds installers in cd.yml
-            # but never runs one.
+            # What a green run does and does not prove: unit tests run on Linux,
+            # macOS and Windows, so a native-prebuild break on any of the three
+            # surfaces. It does not prove the packaged app launches -- CI builds
+            # installers in cd.yml but never runs one.
             if [ "$UPDATE_TYPE" = "version-update:semver-patch" ]; then
               eligible=true
               reason="semver-patch"
@@ -91,8 +88,8 @@ jobs:
             fi
 
           else
-            # Fail closed. An unrecognised ecosystem lands here rather than
-            # inheriting npm's rules.
+            # Fail closed: an unrecognised ecosystem lands here rather
+            # than inheriting npm's rules.
             reason="ecosystem '${PACKAGE_ECOSYSTEM:-<empty>}' has no auto-merge policy"
           fi
 
@@ -126,6 +123,6 @@ jobs:
           gh pr review --approve "$PR_URL"
           # --auto queues the merge and completes only once branch protection
           # is satisfied, so the required `CI Status` check still has to pass.
-          # --admin is never used: it bypasses exactly the protection this
-          # workflow is designed to respect.
+          # --admin is never used: it bypasses the protection this workflow
+          # exists to respect.
           gh pr merge --auto --squash "$PR_URL"

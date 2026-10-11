@@ -2,7 +2,7 @@ import "vite-plus/test/config";
 
 import { defineConfig } from "vite-plus";
 
-// Electron loads .node prebuilds from disk, so native packages stay external.
+// Electron loads .node prebuilds from disk, so natives stay external.
 const MAIN_PROCESS_EXTERNALS = [
   "electron",
   "@napi-rs/keyring",
@@ -27,8 +27,8 @@ export default defineConfig({
   },
   pack: [
     {
-      // One self-contained CJS file per entry: the sandboxed preload cannot
-      // resolve package imports from inside the ASAR.
+      // One self-contained CJS per entry: the sandboxed preload cannot resolve
+      // package imports from inside the ASAR.
       format: "cjs",
       outDir: "dist-electron",
       dts: false,
@@ -59,12 +59,8 @@ export default defineConfig({
       },
     },
   ],
-  // Unit tests only; e2e specs run under Playwright.
+  // e2e specs run under Playwright.
   test: {
-    include: [
-      "test/unit/**/*.test.{ts,tsx}",
-      "test/integration/**/*.test.{ts,tsx}",
-      "src/**/*.test.{ts,tsx}",
-    ],
+    include: ["test/**/*.test.{ts,tsx}"],
   },
 });

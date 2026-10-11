@@ -1,12 +1,9 @@
 # Gitleaks configuration.
 #
-# Default rules plus a narrow, justified exception: test files embed literal
-# secret markers as fixtures. Without this, `policy.test.ts` (which asserts the
-# private-key detector fires) is reported as a leak, and a guardrail that
-# cries wolf on its own test suite is a guardrail people learn to bypass.
-#
-# Scope is deliberately tight: test files only. Anything else that matches a
-# rule still blocks the push.
+# Default rules plus one narrow exception: test files embed literal secret
+# markers as fixtures. Without it `policy.test.ts` (which asserts the
+# private-key detector fires) is itself a leak, and a guardrail that cries wolf
+# on its own suite is one people bypass.
 
 title = "azure-devops-app gitleaks config"
 

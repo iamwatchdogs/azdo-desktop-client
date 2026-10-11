@@ -1,12 +1,12 @@
 # Semgrep rules for the pre-push gate.
 #
-# Deterministic SAST only: patterns that cannot produce false positives in
-# ordinary Electron code. Anything noisier belongs in CI, where a finding is
-# reviewed rather than blocking a push.
+# Deterministic SAST only: patterns that cannot false-positive in ordinary
+# Electron code. Anything noisier belongs in CI, where findings are reviewed
+# rather than blocking a push.
 #
-# Language note: semgrep has no separate `tsx` identifier — TypeScript files
-# containing JSX are parsed as `typescript`. Valid `tsx`/`jsx` here makes
-# `semgrep --validate` fail closed, which would break the gate.
+# No separate `tsx` language exists — TypeScript files containing JSX parse as
+# `typescript`. Listing `tsx` makes `semgrep --validate` fail closed and would
+# break the gate.
 #
 # Validate after editing:  semgrep --validate --config .semgrep
 

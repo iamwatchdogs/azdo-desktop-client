@@ -1,6 +1,5 @@
-# CodeRabbit configuration — deterministic (non-LLM) static tooling for pull
-# request reviews. The local `coderabbit` CLI is LLM-driven; this file enables
-# the analyzer suite that needs no model.
+# CodeRabbit config — the deterministic (non-LLM) analyzers for PR review. The
+# local `coderabbit` CLI is LLM-driven; this file enables the model-free suite.
 reviews:
   profile: chill
   tools:

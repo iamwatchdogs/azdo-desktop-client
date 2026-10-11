@@ -1,9 +1,9 @@
 /**
- * Policy rules exercised directly against their exported pure helpers.
+ * Policy rules exercised against their exported pure helpers.
  *
- * These cover the false-positive behaviour that makes teams disable hooks: a
- * rule that cries wolf on ordinary syntax gets bypassed, and bypassing one rule
- * erodes trust in all the others.
+ * These cover the false positives that make teams disable hooks: a rule that
+ * cries wolf on ordinary syntax gets bypassed, and bypassing one rule erodes
+ * trust in all the others.
  */
 
 import { describe, expect, it } from "vitest";
@@ -19,8 +19,8 @@ import {
   privateKeyViolationsInText,
 } from "./policy.ts";
 
-// These tests feed real rule patterns as fixture data, so the file opts out of
-// the debug-statement rule that would otherwise flag its own fixtures.
+// Real rule patterns are fixture data here, so the file opts out of the
+// debug-statement rule that would flag its own fixtures.
 // debug-statements: allow
 
 const line = (n: number, text: string): AddedLine => ({ line: n, text });
@@ -115,7 +115,7 @@ describe("conflict markers", () => {
   it("flags the ======= bar only in text-like files", () => {
     expect(isConflictMarker("src/a.ts", "=======")).toBe(true);
     expect(isConflictMarker("config/settings.json", "=======")).toBe(true);
-    // `=======` is not a conflict marker in binary-ish paths.
+    // not a conflict marker on binary-ish paths
     expect(isConflictMarker("assets/data.bin", "=======")).toBe(false);
   });
 

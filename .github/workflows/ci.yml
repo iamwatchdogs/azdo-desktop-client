@@ -152,6 +152,14 @@ jobs:
           node-version: "24"
           cache: true
 
+      # The five checks below are independent, read-only and order-free, so
+      # they run as one parallel group instead of five sequential steps.
+      #
+      # The cost is that actionlint v1.7.12 cannot parse `parallel`, so it stops
+      # treating the steps inside the block as steps at all -- they are neither
+      # shellchecked nor context-checked. .github/actionlint.yaml suppresses the
+      # one visible error and documents the blind spot. Everything outside this
+      # block is still fully checked.
       - parallel:
           - name: Format, lint and type-aware lint
             run: vp check

@@ -9,4 +9,4 @@ const target = join(desktopRoot, "dist", "renderer");
 rmSync(target, { recursive: true, force: true });
 mkdirSync(dirname(target), { recursive: true });
 cpSync(source, target, { recursive: true });
-console.log(`[build] renderer copied to ${target}`);
+console.log(`[build] renderer copied to ${target}`); // debug-statements: allow

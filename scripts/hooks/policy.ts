@@ -27,10 +27,6 @@ const SELF_PATH = "scripts/hooks/policy.ts";
 const CODE_FILE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const TEXT_FILE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|json|jsonc|css|html|yml|yaml|sh)$/;
 const TEST_FILE = /(?:^|\/)(?:test|tests|e2e|__tests__)\/|\.(?:test|spec)\.(?:ts|tsx)$/;
-const CONSOLE_PERMITTED_FILES = new Set([
-  "apps/desktop/src/main.ts",
-  "apps/desktop/src/preload.ts",
-]);
 
 const PRIVATE_KEY_PATTERNS: readonly RegExp[] = [
   /-----BEGIN (?:RSA |DSA |EC |OPENSSH |ENCRYPTED |SSH2 ENCRYPTED )?PRIVATE KEY-----/,
@@ -43,6 +39,12 @@ const KEY_ALLOW_MARKER = "detect-private-key: allow";
 interface DebugRule {
   pattern: RegExp;
   label: string;
+  /**
+   * Console output. Exempt in test files only, which embed `console.log`
+   * calls as fixture data. Runtime code has no path-based exemption:
+   * intentional logging uses `console.warn`/`error`/`info`, or opts a
+   * single line in with the allow marker.
+   */
   consoleLog?: boolean;
   testFileOnly?: boolean;
 }
@@ -85,17 +87,8 @@ function isCommentOnly(text: string): boolean {
   return trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*");
 }
 
-function isConsolePermitted(file: string): boolean {
-  return (
-    CONSOLE_PERMITTED_FILES.has(file) ||
-    file.startsWith("scripts/") ||
-    file.startsWith("apps/desktop/scripts/") ||
-    TEST_FILE.test(file)
-  );
-}
-
 function debugRuleApplies(rule: DebugRule, file: string): boolean {
-  if (rule.consoleLog === true && isConsolePermitted(file)) return false;
+  if (rule.consoleLog === true && TEST_FILE.test(file)) return false;
   if (rule.testFileOnly === true && !TEST_FILE.test(file)) return false;
   return true;
 }
@@ -127,9 +120,10 @@ export function checkDebugStatements(root: string, files: readonly string[]): Vi
     files.filter((file) => CODE_FILE.test(file) && file !== SELF_PATH),
     STAGED_DIFF_ARGS,
   );
-  return [...byFile].flatMap(([file, lines]) =>
-    fileOptsOut(lines, DEBUG_ALLOW_MARKER) ? [] : debugViolationsInFile(file, lines),
-  );
+  // Deliberately not gated on fileOptsOut: the marker exempts the line that
+  // carries it, not its whole file. A file-wide opt-out would let one marked
+  // line launder every other console.log committed alongside it.
+  return [...byFile].flatMap(([file, lines]) => debugViolationsInFile(file, lines));
 }
 
 export function checkConflictMarkersStaged(root: string, files: readonly string[]): Violation[] {

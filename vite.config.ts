@@ -84,7 +84,10 @@ export default defineConfig({
     rules: {
       eqeqeq: ["error", "always", { null: "ignore" }],
 
-      "no-console": "error",
+      // oxlint 1.87 implements no console rule at all: `no-console` and
+      // `unicorn/no-console` both fail to resolve, and an unknown rule is
+      // ignored silently. Console output is policed by scripts/hooks/policy.ts,
+      // which blocks console.log/debug/trace/dir/timing on staged lines.
       "no-var": "error",
       "no-eq-null": "error",
       "typescript/no-explicit-any": "error",
@@ -167,15 +170,6 @@ export default defineConfig({
     overrides: [
       {
         files: [
-          "apps/desktop/src/main.ts",
-          "apps/desktop/src/preload.ts",
-          "scripts/**",
-          "apps/desktop/scripts/**",
-        ],
-        rules: { "no-console": "off" },
-      },
-      {
-        files: [
           "**/*.{test,spec}.{ts,tsx}",
           "**/test/**",
           "**/tests/**",
@@ -183,7 +177,6 @@ export default defineConfig({
           "**/__tests__/**",
         ],
         rules: {
-          "no-console": "off",
           "typescript/no-explicit-any": "off",
           "typescript/no-non-null-assertion": "off",
           "typescript/no-unsafe-assignment": "off",

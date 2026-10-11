@@ -78,4 +78,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log(`architecture-check: ok (${sourceFiles.length} files)`);
+console.log(`architecture-check: ok (${sourceFiles.length} files)`); // debug-statements: allow

@@ -69,7 +69,7 @@ function waitForProcessArtifacts(): void {
   }, 150);
 }
 
-console.log(`[dev] renderer dev server on ${RENDERER_URL}`);
+console.log(`[dev] renderer dev server on ${RENDERER_URL}`); // debug-statements: allow
 children.push(spawn(vpBin(rendererRoot), ["dev"], { cwd: rendererRoot, stdio: "inherit" }));
 children.push(
   spawn(vpBin(desktopRoot), ["pack", "--watch"], { cwd: desktopRoot, stdio: "inherit" }),

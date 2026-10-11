@@ -36,12 +36,27 @@ describe("debug statements", () => {
     expect(debugViolationsInFile("src/a.ts", [line(3, 'console.log("x");')])).toHaveLength(1);
   });
 
-  it("allows console.log in the desktop entrypoints that legitimately log", () => {
+  it("flags console.log in the desktop entrypoints too", () => {
     expect(
       debugViolationsInFile("apps/desktop/src/main.ts", [line(3, "console.log(1);")]),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
     expect(
       debugViolationsInFile("apps/desktop/src/preload.ts", [line(3, "console.log(1);")]),
+    ).toHaveLength(1);
+  });
+
+  it("flags console.log in build and hook scripts", () => {
+    expect(debugViolationsInFile("scripts/foo.ts", [line(1, "console.log(1);")])).toHaveLength(1);
+    expect(
+      debugViolationsInFile("apps/desktop/scripts/dev.ts", [line(1, "console.log(1);")]),
+    ).toHaveLength(1);
+  });
+
+  it("allows an intentional console.log that carries the allow marker", () => {
+    expect(
+      debugViolationsInFile("apps/desktop/src/main.ts", [
+        line(1, "console.log(1); // debug-statements: allow"),
+      ]),
     ).toHaveLength(0);
   });
 
@@ -57,6 +72,15 @@ describe("debug statements", () => {
     expect(
       debugViolationsInFile("src/a.ts", [line(1, "debugger; // debug-statements: allow")]),
     ).toHaveLength(0);
+  });
+
+  it("does not let a marker on one line exempt another line in the same file", () => {
+    expect(
+      debugViolationsInFile("apps/desktop/src/main.ts", [
+        line(1, "console.log(1); // debug-statements: allow"),
+        line(2, "console.log(2);"),
+      ]),
+    ).toHaveLength(1);
   });
 
   it("flags focused tests, including in non-test files", () => {

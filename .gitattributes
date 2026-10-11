@@ -1,16 +1,15 @@
-# git autocrlf=true on Windows would rewrite LF to CRLF in the index, which
-# breaks the formatter's endOfLine: "lf" (vite.config.ts) and turns the
-# `.vite-hooks/*` shims into scripts /bin/sh cannot parse.
+# autocrlf on Windows would rewrite LF to CRLF in the index, breaking the
+# formatter's endOfLine: "lf" (vite.config.ts) and the `.vite-hooks/*` shims.
 * text=auto eol=lf
 
-# Hooks are executed by sh, never by cmd.exe: they must stay LF and keep +x.
+# Hooks run under sh, never cmd.exe: LF only, and keep +x.
 .vite-hooks/** text eol=lf
 
-# Windows batch files need CRLF for cmd.exe to parse them reliably.
+# Batch files need CRLF for cmd.exe.
 *.cmd text eol=crlf
 *.bat text eol=crlf
 
-# Binary assets must never be line-ending converted or diffed as text.
+# Never line-ending converted or diffed as text.
 *.png binary
 *.jpg binary
 *.jpeg binary

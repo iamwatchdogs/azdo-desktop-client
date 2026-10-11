@@ -1,9 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignore": [],
-  // Scaffold SDK: present so features can be built immediately.
-  // oxlint/oxfmt run via `vp lint -c` / `vp fmt -c`; the rest are consumed as
-  // features land (tw-animate-css/typography via CSS imports knip does not follow).
+  // Scaffold SDK: present so features can be built as they land. oxlint/oxfmt
+  // run via `vp lint -c` / `vp fmt -c`; the rest arrive with their features
+  // (tw-animate-css/typography via CSS imports knip does not follow).
   "ignoreDependencies": [
     "oxlint",
     "oxfmt",
@@ -25,11 +25,10 @@
   ],
   "workspaces": {
     ".": {
-      // Entry points are the executables the hooks invoke, plus the test files
-      // the root `test` block in vite.config.ts collects. Everything else under
-      // scripts/ stays in `project` so knip can reach its exports — listing a
-      // library file here would exempt every export it has from the
-      // unused-export check.
+      // Hook executables plus the test files the root `test` block in
+      // vite.config.ts collects. Everything else under scripts/ stays in
+      // `project` so knip can reach its exports — listing a library file here
+      // would exempt every export it has from the unused-export check.
       "entry": [
         "scripts/architecture-check.ts",
         "scripts/hooks/policies.ts",

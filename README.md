@@ -91,11 +91,15 @@ resolves to a single copy.
   (Vitest 5), `vp pack` (Rolldown-style bundling), `vp run` (task runner), and the git
   hook dispatcher. The catalog aliases `vite` → `@voidzero-dev/vite-plus-core`, which
   _is_ Vite 8 + Rolldown.
-- **Config files**: `vite.config.ts` is the single source for format and lint
-  settings — the `fmt` block (previously `.oxfmtrc.json`) and the `lint` block
-  with `typeAware`/`typeCheck`. Keeping them there is what lets `vp check` run
-  format + lint + type-aware lint in one pass. `.oxlintrc.complexity.json`
-  stays external because the complexity gate is a separate `vp lint -c` run.
+- **Config files**: `vite.config.ts` is the single source for format, lint, test,
+  staged-check, and task settings — the `fmt`, `lint`, `test`, `staged`, and
+  `run.tasks` blocks. This is what lets `vp check` run format + lint +
+  type-aware lint in one pass. It matters more than it looks: Oxlint resolves
+  config from the nearest `vite.config.*` that has a `lint` block, so a partial
+  `lint` block silently shadows any `.oxlintrc.json` beside it and the whole
+  ruleset goes unrun. `.oxlintrc.complexity.json` is the one deliberate
+  exception — it stays a separate file because the complexity gate is an
+  isolated `vp lint -c` run with its own rule set, not a duplicate.
   oxlint-tsgolint ships its own TypeScript 7 binary, so type-aware linting works
   with the native compiler. `.coderabbit.yaml` enables CodeRabbit's
   deterministic (non-LLM) analyzers for pull-request review; it is not part of
@@ -153,7 +157,19 @@ resolves to a single copy.
   - `.gitleaks.toml` carries gitleaks' default rules plus a narrow exception for
     test files, which embed literal key markers as fixtures.
   - `policy.ts` enforces a 500 MB staged-blob limit; override with
-    `ADO_HOOKS_MAX_FILE_BYTES`.
+    `ADO_HOOKS_MAX_FILE_BYTES`, and blocks `debugger`, focused/skipped tests,
+    and `console.log`/`debug`/`trace`/`dir`/`time*` on staged lines.
+
+- **Console policy**: oxlint 1.87 ships no console rule (`no-console` and
+  `unicorn/no-console` both fail to resolve, and an unknown rule is ignored
+  silently), so `policy.ts` is the only thing enforcing it. It applies
+  everywhere except test files, which embed `console.log` as fixture data —
+  there is no path-based exemption, because the files where intentional
+  logging lives are exactly the files where a leftover is indistinguishable
+  from it. Intentional output uses `console.warn`/`error`/`info`, or opts a
+  single line in with `// debug-statements: allow`. The marker is per-line:
+  a file-wide opt-out would launder every other debug statement committed
+  beside the marked one.
 
 - **pnpm 12 gates**: `allowBuilds` approves install scripts (electron, ffi-rs,
   keyring, xa11y, electron-winstaller, esbuild). `minimumReleaseAge: 0` disables the

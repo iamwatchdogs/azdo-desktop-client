@@ -107,24 +107,27 @@ export default defineConfig({
           'if [ "${SKIP_OSV:-0}" = "1" ]; then echo "skipped (SKIP_OSV=1)"; else osv-scanner scan source --lockfile=pnpm-lock.yaml --format=vertical --verbosity=error; fi',
         cache: false,
       },
-      /** Deterministic SAST, diff-scoped via the push base. */
-      sast: {
-        command:
-          'semgrep scan --config .semgrep --metrics=off --disable-version-check --error --exclude=node_modules --exclude=dist --exclude=dist-electron --exclude=release --exclude=.vite-plus --baseline-commit "$GITHOOK_BASE"',
-        cache: false,
-      },
 
-      /** Unit tests, narrowed to those affected by the push range. */
       /**
+       * Deterministic SAST, diff-scoped via the push base.
+       *
        * Heavy scanners, serialized.
        *
        * osv-scanner, semgrep and vitest are each memory-hungry; running them
        * concurrently on an 8 GB machine gets them OOM-killed (exit 137), which
-       * is a false failure that looks like a flaky gate. Declaring `sast`
-       * dependsOn `deps` makes Vite Task order them, and `unit-tests` depends
-       * on `sast` so the three never overlap. Cheap checks stay parallel in
-       * `push-gate`.
+       * is a false failure that looks like a flaky gate. They form a chain
+       * instead: deps -> sast -> unit-tests. Declaring `deps` and `sast` as
+       * siblings of `push-gate` runs them together, which is exactly what
+       * caused the kill. Cheap checks stay parallel in `push-gate`.
        */
+      sast: {
+        command:
+          'semgrep scan --config .semgrep --metrics=off --disable-version-check --error --exclude=node_modules --exclude=dist --exclude=dist-electron --exclude=release --exclude=.vite-plus --baseline-commit "$GITHOOK_BASE"',
+        dependsOn: ["deps"],
+        cache: false,
+      },
+
+      /** Unit tests, narrowed to those affected by the push range. */
       "unit-tests": {
         command: [
           'vp -C packages/shared test run --changed "$GITHOOK_BASE" --passWithNoTests',

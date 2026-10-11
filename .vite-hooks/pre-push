@@ -1,12 +1,70 @@
 #!/usr/bin/env sh
-# Vite+ hook shim -> project-owned dispatcher.
-# Keep this to wiring only; policy lives in hooks.config.ts.
+# Vite+ hook shim: the pre-push gate.
 #
-# `cd` to the repository root is deliberate: `vp staged` reads the `staged`
-# block from the root vite.config.ts, and fails when invoked from a workspace
-# package (voidzero-dev/vite-plus#2177). Do not "simplify" it away.
+# The checks themselves are declared as tasks in vite.config.ts under
+# run.tasks; `vp run push-gate` runs them concurrently and reports them
+# together. This script only does the two things Vite+ does not provide:
 #
-# `exec` (not a subshell) so git's pre-push stdin reaches the dispatcher, which
-# reads the local/remote SHAs to resolve the comparison range.
+#   1. Resolve the SHA this push is compared against, and export it as
+#      GITHOOK_BASE so range-scoped tasks (gitleaks, semgrep, vitest) work.
+#   2. Refuse to run if a security scanner is missing (fail closed).
+#
+# Bypasses: SKIP_OSV=1 (known pre-existing advisories), VP_GIT_HOOKS=0.
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec node scripts/hooks/pre-push.ts "$@"
+
+remote="${1:-origin}"
+zero=$(printf '0%.0s' $(seq 40))
+base=""
+
+# Git feeds "<local ref> <local sha> <remote ref> <remote sha>" per ref on stdin.
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # branch deletion: nothing to push
+  if [ "$remote_sha" != "$zero" ] && git cat-file -e "${remote_sha}^{commit}" 2>/dev/null; then
+    base="$remote_sha"
+    break
+  fi
+done
+
+if [ -z "$base" ]; then
+  base=$(git rev-parse --abbrev-ref --symbolic-full-name '@{push}' 2>/dev/null || true)
+fi
+if [ -z "$base" ]; then
+  branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+  if [ -n "$branch" ]; then
+    base=$(git rev-parse --verify --quiet "refs/remotes/${remote}/${branch}" 2>/dev/null || true)
+  fi
+fi
+if [ -z "$base" ]; then
+  # Fall back to the root commit: correct but wide, so affected-test selection
+  # degrades to "everything". Warn rather than pretend the range is tight.
+  base=$(git rev-list --max-parents=0 HEAD 2>/dev/null | head -1)
+  echo "pre-push: no upstream found; comparing against the root commit" >&2
+fi
+if [ -z "$base" ]; then
+  echo "pre-push: cannot resolve a base commit; aborting" >&2
+  exit 1
+fi
+
+# Fail closed on the security gates: a scanner that is not installed must not
+# silently become a passing check.
+missing=""
+for tool in gitleaks semgrep; do
+  command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+done
+if [ "${SKIP_OSV:-}" != "1" ]; then
+  command -v osv-scanner >/dev/null 2>&1 || missing="$missing osv-scanner"
+fi
+if [ -n "$missing" ]; then
+  echo "pre-push: missing security scanner(s):$missing" >&2
+  echo "  Install with brew, or set SKIP_OSV=1 to bypass the dependency scan." >&2
+  exit 1
+fi
+
+GITHOOK_BASE="$base"
+export GITHOOK_BASE
+echo "pre-push: comparing ${base}..HEAD" >&2
+
+# Concurrency is declared in vite.config.ts, not on this command line: the
+# memory-heavy scanners are ordered via dependsOn so they never overlap, which
+# OOM-killed them (exit 137) on an 8 GB machine.
+exec vp run push-gate

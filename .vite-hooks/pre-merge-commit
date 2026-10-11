@@ -1,10 +1,14 @@
 #!/usr/bin/env sh
-# Vite+ hook shim -> project-owned dispatcher.
-# Keep this to wiring only; policy lives in hooks.config.ts.
+# Vite+ hook shim: guard the merge commit.
 #
-# Git has no `pre-merge` hook. This is the merge-stage hook: it runs for
-# non-fast-forward merges, after the merge is resolved and before the merge
-# commit is written. Fast-forward merges create no merge commit and never
-# reach this script — that is git's behavior, not an oversight here.
+# Git invokes this only from the `git merge` builtin, and only when the merge
+# completes on its own. The path that matters most is different: when a merge
+# conflicts, you resolve it and finish with `git commit`, which runs
+# pre-commit instead — and pre-commit runs this same script via `vp staged`.
+# So both merge paths are covered, just by different hooks.
+#
+# Git already refuses a commit with unmerged files. The case this adds is a
+# conflict "resolved" by `git add` without deleting the markers: git accepts
+# that, and only this check catches it.
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec node scripts/hooks/pre-merge-commit.ts "$@"
+exec node scripts/hooks/policies.ts

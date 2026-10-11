@@ -16,7 +16,7 @@ import {
   isConflictMarker,
   fileOptsOut,
   privateKeyViolationsInText,
-} from "./lib/policy.ts";
+} from "./policy.ts";
 
 // These tests feed real rule patterns as fixture data, so the file opts out of
 // the debug-statement rule that would otherwise flag its own fixtures.

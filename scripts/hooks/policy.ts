@@ -5,8 +5,12 @@ import {
   gitQuiet,
   stagedFiles,
   type AddedLine,
-} from "./git.ts";
-import type { CheckOutcome } from "./runner.ts";
+} from "./lib/git.ts";
+
+export interface CheckOutcome {
+  status: "passed" | "failed" | "skipped";
+  output: string;
+}
 
 export interface Violation {
   file: string;
@@ -18,7 +22,7 @@ const MAX_COMMIT_FILE_BYTES = Number(process.env["ADO_HOOKS_MAX_FILE_BYTES"] ?? 
 
 const MIB = 1024 * 1024;
 const MAX_KEY_SCAN_BYTES = 2 * MIB;
-const SELF_PATH = "scripts/hooks/lib/policy.ts";
+const SELF_PATH = "scripts/hooks/policy.ts";
 
 const CODE_FILE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 const TEXT_FILE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|json|jsonc|css|html|yml|yaml|sh)$/;
@@ -220,24 +224,4 @@ function largeFileViolationsInFile(root: string, file: string): Violation[] {
 
 export function checkLargeFiles(root: string): Violation[] {
   return stagedFiles(root).flatMap((file) => largeFileViolationsInFile(root, file));
-}
-
-function formatViolations(violations: readonly Violation[], limit = 20): string {
-  const shown = violations
-    .slice(0, limit)
-    .map((violation) =>
-      violation.line === null
-        ? `  ${violation.file}: ${violation.message}`
-        : `  ${violation.file}:${violation.line}: ${violation.message}`,
-    );
-  if (violations.length > shown.length) {
-    shown.push(`  ... and ${violations.length - shown.length} more`);
-  }
-  return shown.join("\n");
-}
-
-export async function policyCheck(run: () => Violation[]): Promise<CheckOutcome> {
-  const violations = run();
-  if (violations.length === 0) return { status: "passed", output: "" };
-  return { status: "failed", output: formatViolations(violations) };
 }

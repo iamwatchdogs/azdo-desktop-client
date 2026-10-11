@@ -1,8 +1,7 @@
 name: CI
 
-# Doubles as the push/PR entry point and as a reusable workflow that cd.yml
-# calls with `run-all: true`, so a tag cannot ship a tree that main's CI never
-# checked.
+# Push/PR entry point, and the reusable workflow cd.yml calls with
+# run-all: true, so a tag cannot ship a tree main's CI never checked.
 
 on:
   push:
@@ -25,10 +24,10 @@ on:
 permissions:
   contents: read
 
-# `prepare` runs `vp config --no-agent`, which installs the dispatcher into
-# .vite-hooks/_ and sets core.hooksPath. That is a developer-loop concern; CI
-# enforces the same gates as jobs below. Without this, every job pays for a hook
-# install it will never invoke.
+# `prepare` runs `vp config --no-agent`, installing the dispatcher into
+# .vite-hooks/_ and setting core.hooksPath. That is a developer-loop concern;
+# CI enforces the same gates as jobs below, so without this every job would pay
+# for a hook install it never invokes.
 env:
   VP_GIT_HOOKS: "0"
 
@@ -66,11 +65,11 @@ jobs:
         id: filter
         with:
           filters: |
-            # Everything the lint, test and security jobs read. The three
-            # scanner configs live here rather than in their own filter on
-            # purpose: touching one re-runs SAST and the dependency gate, which
-            # is the only way a suppression in .osv-scanner.toml can be
-            # re-litigated. A docs-only diff runs nothing.
+            # Everything the lint, test and security jobs read. The three scanner configs
+            # live here rather than in their own filter on purpose: touching one
+            # re-runs SAST and the dependency gate, the only way a suppression
+            # in .osv-scanner.toml can be re-litigated. A docs-only diff runs
+            # nothing.
             source:
               - 'apps/**'
               - 'packages/**'
@@ -117,15 +116,14 @@ jobs:
         with:
           version: v1.7.12
 
-  # The local pre-push gate is `vp run push-gate`, but that task is not what CI
-  # runs, for two reasons. Its `secrets` and `sast` members are range-scoped
-  # through $GITHOOK_BASE, which only the git hooks export -- in CI the base is
-  # whatever the checkout's history allows, and the security job below scans
-  # full history instead. And an aggregator that hides six checks behind one
-  # `vp run` line loses the per-step signal in the Actions UI. So the four
-  # base-independent tasks run as named steps, and the two range-scoped ones
-  # live in the `security` job. Keep the two lists in step when vite.config.ts
-  # changes.
+  # The local pre-push gate is `vp run push-gate`, but CI does not run it, for
+  # two reasons. Its `secrets` and `sast` members are range-scoped through
+  # $GITHOOK_BASE, which only the git hooks export -- in CI the base is whatever
+  # the checkout's history allows, and the security job scans full history
+  # instead. And an aggregator hiding six checks behind one `vp run` line loses
+  # the per-step signal in the Actions UI. So the four base-independent tasks
+  # run as named steps and the two range-scoped ones live in the `security` job.
+  # Keep the two lists in step when vite.config.ts changes.
   static-analysis:
     name: Static analysis
     needs: [detect-changes]
@@ -152,14 +150,14 @@ jobs:
           node-version: "24"
           cache: true
 
-      # The five checks below are independent, read-only and order-free, so
-      # they run as one parallel group instead of five sequential steps.
+      # The five checks below are independent, read-only and order-free, so they run
+      # as one parallel group instead of five sequential steps.
       #
-      # The cost is that actionlint v1.7.12 cannot parse `parallel`, so it stops
-      # treating the steps inside the block as steps at all -- they are neither
-      # shellchecked nor context-checked. .github/actionlint.yaml suppresses the
-      # one visible error and documents the blind spot. Everything outside this
-      # block is still fully checked.
+      # The cost: actionlint v1.7.12 cannot parse `parallel`, so it stops
+      # treating the steps inside as steps -- neither shellchecked nor
+      # context-checked. .github/actionlint.yaml suppresses the one visible
+      # error and documents the blind spot. Everything outside the block is
+      # still fully checked.
       - parallel:
           - name: Format, lint and type-aware lint
             run: vp check
@@ -188,10 +186,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # @napi-rs/keyring, ffi-rs and dbus-next all ship platform-specific
-        # artifacts and are covered by pnpm-workspace allowBuilds. A green
-        # ubuntu run says nothing about whether those install on Windows or
-        # macOS, so all three are exercised.
+        # @napi-rs/keyring, ffi-rs and dbus-next ship platform-specific artifacts
+        # (covered by pnpm-workspace allowBuilds). A green ubuntu run says
+        # nothing about Windows or macOS, so all three are exercised.
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
@@ -250,9 +247,8 @@ jobs:
           cache: true
 
       # The spec drives the Electron binary from node_modules, so Playwright
-      # downloads no browser of its own -- but it does need the shared
-      # libraries Electron links against (libnss3, libgbm, libasound and
-      # friends), which the runner image does not carry.
+      # downloads no browser -- but it does need the shared libraries Electron
+      # links against (libnss3, libgbm, libasound), absent from the image.
       - name: Install Electron's shared libraries
         run: vp -C apps/desktop exec playwright install-deps chromium
 
@@ -290,14 +286,12 @@ jobs:
     permissions:
       contents: read
 
-    # Deliberately no setup-vp step: none of these three scanners need Node or
-    # an installed dependency tree. gitleaks reads git history, osv-scanner
-    # reads pnpm-lock.yaml plus the manifests, and semgrep reads source. That
-    # keeps the job to one checkout and three tools.
+    # No setup-vp: none of these scanners need Node or a dependency tree.
+    # gitleaks reads git history, osv-scanner reads pnpm-lock.yaml plus the
+    # manifests, semgrep reads source. One checkout, three tools.
     steps:
-      # Full history, not the default shallow fetch: the whole point of a
-      # secret gate is catching a credential that landed in an old commit and
-      # was only rewritten later.
+      # Full history, not the default shallow fetch: the point of a secret gate
+      # is catching a credential that landed in an old commit.
       - name: Check out the repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -308,18 +302,18 @@ jobs:
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Unused while the repository is under a personal account; required
-          # the moment it moves to an organisation.
+          # Unused while the repo is under a personal account; required once it moves to
+          # an organisation.
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
           GITLEAKS_VERSION: "8.30.1"
           GITLEAKS_CONFIG: .gitleaks.toml
-          # Comments need pull-requests: write. The job fails on a leak either
-          # way, so the extra permission buys nothing here.
+          # Comments need pull-requests: write. The job fails either way, so the extra
+          # permission buys nothing.
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
 
-      # Same invocation as the local `deps` task, so the acceptances recorded
-      # in .osv-scanner.toml mean the same thing in both places.
+      # Same invocation as the local `deps` task, so the acceptances in
+      # .osv-scanner.toml mean the same thing in both places.
       - name: Scan the lockfile for known advisories
         uses: google/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
@@ -337,11 +331,11 @@ jobs:
       # The semgrep action is deprecated and this repo's rules are its own
       # (.semgrep/security.yaml), so the CLI is the honest interface. The
       # version is pinned because rule behaviour can change in a release;
-      # bump it on purpose, with Dependabot or a hand edit.
+      # bump it on purpose.
       #
-      # No --baseline-commit: the local task diffs against $GITHOOK_BASE, and
-      # CI scans the whole tree instead. A pre-existing finding should not be
-      # invisible in CI just because it predates the PR.
+      # No --baseline-commit: the local task diffs against $GITHOOK_BASE, CI
+      # scans the whole tree. A pre-existing finding should not be invisible in
+      # CI just because it predates the PR.
       - name: Deterministic SAST
         run: >-
           uvx --from semgrep==1.180.0 semgrep scan
@@ -356,8 +350,8 @@ jobs:
           --exclude=.vite-plus
 
   # One required status check for branch protection. Path-filtered jobs report
-  # `skipped`, which is indistinguishable from a failure unless the filter's
-  # own verdict is consulted -- this job is where that happens.
+  # `skipped`, indistinguishable from failure unless the filter's own verdict is
+  # consulted -- this job is where that happens.
   ci-status:
     name: CI Status
     needs:

@@ -1,9 +1,8 @@
 name: Scorecard supply-chain security
 
-# Scores the repository's own supply-chain posture: are actions pinned, is the
-# token scope minimal, are dependencies inventoried. This is the check that
-# notices a future workflow drifting away from the conventions the rest of
-# .github/ follows.
+# Scores this repo's own supply-chain posture: are actions pinned, is token
+# scope minimal, are dependencies inventoried. This is what notices a future
+# workflow drifting from the conventions the rest of .github/ follows.
 
 on:
   branch_protection_rule:

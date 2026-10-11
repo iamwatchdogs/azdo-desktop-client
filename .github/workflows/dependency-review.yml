@@ -1,10 +1,9 @@
 name: "Dependency review"
 
-# Pull-request gate on the dependency diff itself. Complementary to the
-# `security` job in ci.yml: that one re-reads the whole lockfile on every push,
-# which catches an advisory landing in a transitive dependency but cannot tell a
-# reviewer which line of the diff introduced it. This one looks only at what
-# the PR adds.
+# PR gate on the dependency diff itself. Complementary to the `security` job in
+# ci.yml: that one re-reads the whole lockfile every push, catching an advisory
+# in a transitive dependency but not which diff line introduced it. This looks
+# only at what the PR adds.
 
 on:
   pull_request:

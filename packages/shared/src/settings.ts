@@ -5,7 +5,7 @@ export type Theme = z.infer<typeof ThemeSchema>;
 
 export const AppSettingsSchema = z.object({
   theme: ThemeSchema,
-  /** Keychain account name used to store the Azure DevOps PAT. */
+  /** Keychain account holding the Azure DevOps PAT. */
   patAccount: z.string().min(1).default("azure-devops"),
 });
 

@@ -1,6 +1,6 @@
 import type { AppSettings } from "./settings";
 
-/** IPC channel names, shared so a rename is a compile error, not a runtime mystery. */
+/** Shared so a rename is a compile error, not a runtime mystery. */
 export const IPC_CHANNELS = {
   appVersion: "app:version",
   getSettings: "settings:get",
@@ -17,7 +17,7 @@ export interface CapabilityResult {
   detail: string;
 }
 
-/** The API the preload script exposes on `window.azdo`. */
+/** Preload surface exposed as `window.azdo`. */
 export interface AzdoBridge {
   appVersion(): Promise<string>;
   getSettings(): Promise<AppSettings>;

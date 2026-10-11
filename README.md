@@ -29,22 +29,18 @@ pnpm install     # also installs the git hook dispatcher via `prepare`
 pnpm dev         # renderer dev server + main/preload watch build + Electron
 ```
 
-| Command                       | What it does                                                                                                                                   |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                    | `scripts/dev.ts`: renderer dev server on :5173, `vp pack --watch` for main/preload, launches Electron and restarts it on main-process rebuilds |
-| `pnpm build`                  | builds `@ado/renderer` (dependsOn), packs main/preload, copies the renderer bundle into `dist/renderer`                                        |
-| `pnpm start`                  | launches Electron against the built bundles                                                                                                    |
-| `pnpm test`                   | Vitest in every workspace                                                                                                                      |
-| `pnpm test:e2e`               | Playwright Electron smoke test on the built app                                                                                                |
-| `pnpm typecheck`              | `tsc --noEmit` per workspace (TypeScript 7 native)                                                                                             |
-| `pnpm lint` / `pnpm fmt`      | Oxlint / Oxfmt via `vp lint -c` / `vp fmt -c`                                                                                                  |
-| `pnpm knip`                   | Unused files, dependencies, exports                                                                                                            |
-| `pnpm arch:check`             | ts-morph architecture guard                                                                                                                    |
-| `pnpm check:complexity`       | Cognitive/cyclomatic complexity gate (`oxlint-plugin-complexity`)                                                                              |
-| `pnpm hooks:pre-commit`       | Runs the pre-commit gate outside a `git commit`                                                                                                |
-| `pnpm hooks:pre-push`         | Runs the pre-push gate outside a `git push`                                                                                                    |
-| `pnpm hooks:pre-merge-commit` | Runs the merge gate outside a `git merge`                                                                                                      |
-| `pnpm dist`                   | electron-builder packaging                                                                                                                     |
+| Command                 | What it does                                                                                                                                   |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`              | `scripts/dev.ts`: renderer dev server on :5173, `vp pack --watch` for main/preload, launches Electron and restarts it on main-process rebuilds |
+| `pnpm build`            | builds `@ado/renderer` (dependsOn), packs main/preload, copies the renderer bundle into `dist/renderer`                                        |
+| `pnpm start`            | launches Electron against the built bundles                                                                                                    |
+| `pnpm check`            | `vp check`: format + lint + type-aware lint in one pass                                                                                        |
+| `pnpm test`             | Vitest in every workspace                                                                                                                      |
+| `pnpm test:e2e`         | Playwright Electron smoke test on the built app                                                                                                |
+| `pnpm typecheck`        | `tsc --noEmit` per workspace (TypeScript 7 native)                                                                                             |
+| `pnpm knip`             | Unused files, dependencies, exports                                                                                                            |
+| `pnpm check:complexity` | Cognitive/cyclomatic complexity gate (`oxlint-plugin-complexity`)                                                                              |
+| `pnpm dist`             | electron-builder packaging                                                                                                                     |
 
 ## Workspace layout
 
@@ -95,11 +91,15 @@ resolves to a single copy.
   (Vitest 5), `vp pack` (Rolldown-style bundling), `vp run` (task runner), and the git
   hook dispatcher. The catalog aliases `vite` → `@voidzero-dev/vite-plus-core`, which
   _is_ Vite 8 + Rolldown.
-- **Config files**: `.oxlintrc.json` and `.oxfmtrc.json` are the canonical lint/format
-  configs. Vite+ does not auto-discover them (its docs steer lint/fmt config into
-  `vite.config.ts`), so scripts and hooks pass `-c` explicitly. The lint config runs
-  type-aware (`typeAware`/`typeCheck`) — oxlint-tsgolint ships its own TypeScript 7
-  binary, so this works with the native compiler.
+- **Config files**: `vite.config.ts` is the single source for format and lint
+  settings — the `fmt` block (previously `.oxfmtrc.json`) and the `lint` block
+  with `typeAware`/`typeCheck`. Keeping them there is what lets `vp check` run
+  format + lint + type-aware lint in one pass. `.oxlintrc.complexity.json`
+  stays external because the complexity gate is a separate `vp lint -c` run.
+  oxlint-tsgolint ships its own TypeScript 7 binary, so type-aware linting works
+  with the native compiler. `.coderabbit.yaml` enables CodeRabbit's
+  deterministic (non-LLM) analyzers for pull-request review; it is not part of
+  the hook gate.
 - **TypeScript 7** (native compiler) with maximum strictness in
   `tsconfig.base.json` (`strict`, `noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`,
@@ -121,37 +121,38 @@ resolves to a single copy.
   domain-specific — add when a feature needs them.
 - **Git hooks**: `pnpm install` runs `prepare` → `vp config --no-agent`, which
   installs the dispatcher into `.vite-hooks/_` (generated, self-ignored) and sets
-  `core.hooksPath`. Project-owned scripts: `.vite-hooks/pre-commit` and
-  `.vite-hooks/pre-push` — both delegate to `tsx scripts/hooks/*.ts`, which run
-  every check concurrently (`Promise.all`, buffered per-check output, all failures
-  reported at once). `VP_GIT_HOOKS=0 git commit|push …` bypasses a run.
+  `core.hooksPath`. `VP_GIT_HOOKS=0 git commit|push …` bypasses a run.
 
-  **pre-commit** — formatting runs first (`vp staged` rewrites staged files and
-  re-stages them), then in parallel: `lint` (oxlint, type-aware), `complexity`
-  (cognitive/cyclomatic), `typecheck`, `ast-check` (the ts-morph architecture
-  guard), `debug-statements`, `detect-private-key`, `check-added-large-files`,
-  `check-merge-conflict`. A branch guard runs first: committing on `main`/`master`
-  is refused (override once with `ALLOW_MAIN=1`).
-  **pre-push** — in parallel over the resolved push range `base..HEAD`:
-  `fmt:check`, `lint`, `complexity`, `typecheck`, `ast-check`, `knip`, `gitleaks`,
-  `osv-scanner`, `semgrep`, `check-merge-conflict`, `tests (vitest)`
-  (only tests affected by the range), `tests (playwright e2e)` (builds, then only
-  changed specs when the range touches app code), `codacy`, `coderabbit-advisory`.
-  Tools that aren't installed skip with an install hint instead of failing. Bypass
-  individual optional checks with `SKIP_OSV=1`, `SKIP_E2E=1`,
-  `CODERABBIT_ADVISORY=1` (opt-in, since it is LLM-driven).
-  **pre-merge-commit** — runs the same policy as pre-push, against the merge
-  result sitting in the index. Git writes `MERGE_HEAD` only _after_ this hook
-  runs and passes it no arguments, so the comparison is `index vs HEAD` rather
-  than a commit range. It fires for non-fast-forward merges; a fast-forward
-  merge creates no merge commit and therefore skips it. Secret scanning
-  switches to `gitleaks protect --staged` in this mode because there is no
-  commit range to walk — which also catches secrets introduced by conflict
-  resolution.
-  Install the optional scanners with `brew install gitleaks osv-scanner semgrep`.
-  - `.semgrep/` holds the deterministic SAST rules used by the pre-push gate;
-    `.coderabbit.yaml` enables the matching non-LLM analyzers for PR reviews.
-  - `check-added-large-files` uses a 500 MB staged-blob threshold; override with
+  Hook policy is declared in [`vite.config.ts`](/vite.config.ts), not in script:
+  the `staged` block drives pre-commit, and the `run.tasks` block defines the
+  pre-push gate as a task graph that Vite Task runs concurrently and reports
+  together.
+
+  **pre-commit** — refuses commits on `main`/`master` (override once with
+  `ALLOW_MAIN=1`), then runs `vp staged`: the `staged` block applies
+  `vp check --fix` (format + lint + type-aware lint) and
+  `scripts/hooks/policies.ts` (debug statements, private keys, oversized files,
+  conflict markers) to the staged files.
+  **pre-push** — resolves the push base and exports it as `GITHOOK_BASE`, refuses
+  to run if a security scanner is missing (**fail closed** — a scanner that
+  cannot run must never report as passing), then `vp run push-gate`:
+  `complexity`, `typecheck:all`, `arch-check`, `knip`, `secrets` (gitleaks),
+  `deps` (osv-scanner), `sast` (semgrep), `unit-tests` (vitest, narrowed to the
+  push range). The heavy scanners are ordered via `dependsOn` so they never
+  overlap — running them together OOM-kills them on smaller machines.
+  **pre-merge-commit** — guards the merge commit. Git runs it only from the
+  `git merge` builtin; when a merge conflicts you finish with `git commit`,
+  which runs pre-commit instead and applies the same checks. The case it adds:
+  a conflict "resolved" with `git add` but the markers left in place, which git
+  accepts and only this check rejects.
+
+  Install the scanners with `brew install gitleaks osv-scanner semgrep`.
+  `SKIP_OSV=1` bypasses the dependency scan, which is the documented way to
+  triage advisories you did not introduce.
+  - `.semgrep/` holds the deterministic SAST rules used by the pre-push gate.
+  - `.gitleaks.toml` carries gitleaks' default rules plus a narrow exception for
+    test files, which embed literal key markers as fixtures.
+  - `policy.ts` enforces a 500 MB staged-blob limit; override with
     `ADO_HOOKS_MAX_FILE_BYTES`.
 
 - **pnpm 12 gates**: `allowBuilds` approves install scripts (electron, ffi-rs,

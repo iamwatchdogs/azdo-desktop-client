@@ -29,8 +29,6 @@
       "entry": [
         "scripts/*.ts",
         "scripts/hooks/*.ts",
-        "scripts/hooks/pre-merge-commit.ts",
-        "scripts/hooks/checks/*.ts",
         "scripts/hooks/lib/*.ts",
         "scripts/hooks/**/*.test.ts",
         "*.config.ts",

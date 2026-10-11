@@ -29,21 +29,22 @@ pnpm install     # also installs the git hook dispatcher via `prepare`
 pnpm dev         # renderer dev server + main/preload watch build + Electron
 ```
 
-| Command                  | What it does                                                                                                                                   |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`               | `scripts/dev.ts`: renderer dev server on :5173, `vp pack --watch` for main/preload, launches Electron and restarts it on main-process rebuilds |
-| `pnpm build`             | builds `@ado/renderer` (dependsOn), packs main/preload, copies the renderer bundle into `dist/renderer`                                        |
-| `pnpm start`             | launches Electron against the built bundles                                                                                                    |
-| `pnpm test`              | Vitest in every workspace                                                                                                                      |
-| `pnpm test:e2e`          | Playwright Electron smoke test on the built app                                                                                                |
-| `pnpm typecheck`         | `tsc --noEmit` per workspace (TypeScript 7 native)                                                                                             |
-| `pnpm lint` / `pnpm fmt` | Oxlint / Oxfmt via `vp lint -c` / `vp fmt -c`                                                                                                  |
-| `pnpm knip`              | Unused files, dependencies, exports                                                                                                            |
-| `pnpm arch:check`        | ts-morph architecture guard                                                                                                                    |
-| `pnpm check:complexity`  | Cognitive/cyclomatic complexity gate (`oxlint-plugin-complexity`)                                                                              |
-| `pnpm hooks:pre-commit`  | Runs the pre-commit gate outside a `git commit`                                                                                                |
-| `pnpm hooks:pre-push`    | Runs the pre-push gate outside a `git push`                                                                                                    |
-| `pnpm dist`              | electron-builder packaging                                                                                                                     |
+| Command                       | What it does                                                                                                                                   |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                    | `scripts/dev.ts`: renderer dev server on :5173, `vp pack --watch` for main/preload, launches Electron and restarts it on main-process rebuilds |
+| `pnpm build`                  | builds `@ado/renderer` (dependsOn), packs main/preload, copies the renderer bundle into `dist/renderer`                                        |
+| `pnpm start`                  | launches Electron against the built bundles                                                                                                    |
+| `pnpm test`                   | Vitest in every workspace                                                                                                                      |
+| `pnpm test:e2e`               | Playwright Electron smoke test on the built app                                                                                                |
+| `pnpm typecheck`              | `tsc --noEmit` per workspace (TypeScript 7 native)                                                                                             |
+| `pnpm lint` / `pnpm fmt`      | Oxlint / Oxfmt via `vp lint -c` / `vp fmt -c`                                                                                                  |
+| `pnpm knip`                   | Unused files, dependencies, exports                                                                                                            |
+| `pnpm arch:check`             | ts-morph architecture guard                                                                                                                    |
+| `pnpm check:complexity`       | Cognitive/cyclomatic complexity gate (`oxlint-plugin-complexity`)                                                                              |
+| `pnpm hooks:pre-commit`       | Runs the pre-commit gate outside a `git commit`                                                                                                |
+| `pnpm hooks:pre-push`         | Runs the pre-push gate outside a `git push`                                                                                                    |
+| `pnpm hooks:pre-merge-commit` | Runs the merge gate outside a `git merge`                                                                                                      |
+| `pnpm dist`                   | electron-builder packaging                                                                                                                     |
 
 ## Workspace layout
 
@@ -139,6 +140,14 @@ resolves to a single copy.
   Tools that aren't installed skip with an install hint instead of failing. Bypass
   individual optional checks with `SKIP_OSV=1`, `SKIP_E2E=1`,
   `CODERABBIT_ADVISORY=1` (opt-in, since it is LLM-driven).
+  **pre-merge-commit** — runs the same policy as pre-push, against the merge
+  result sitting in the index. Git writes `MERGE_HEAD` only _after_ this hook
+  runs and passes it no arguments, so the comparison is `index vs HEAD` rather
+  than a commit range. It fires for non-fast-forward merges; a fast-forward
+  merge creates no merge commit and therefore skips it. Secret scanning
+  switches to `gitleaks protect --staged` in this mode because there is no
+  commit range to walk — which also catches secrets introduced by conflict
+  resolution.
   Install the optional scanners with `brew install gitleaks osv-scanner semgrep`.
   - `.semgrep/` holds the deterministic SAST rules used by the pre-push gate;
     `.coderabbit.yaml` enables the matching non-LLM analyzers for PR reviews.

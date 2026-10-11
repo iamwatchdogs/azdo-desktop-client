@@ -152,20 +152,21 @@ jobs:
           node-version: "24"
           cache: true
 
-      - name: Format, lint and type-aware lint
-        run: vp check
+      - parallel:
+          - name: Format, lint and type-aware lint
+            run: vp check
 
-      - name: Cognitive/cyclomatic complexity ceiling
-        run: vp run complexity
+          - name: Cognitive/cyclomatic complexity ceiling
+            run: vp run complexity
 
-      - name: Typecheck every workspace and the hook scripts
-        run: vp run typecheck:all
+          - name: Typecheck every workspace and the hook scripts
+            run: vp run typecheck:all
 
-      - name: Import-boundary guard
-        run: vp run arch-check
+          - name: Import-boundary guard
+            run: vp run arch-check
 
-      - name: Unused files, dependencies and exports
-        run: vp run knip
+          - name: Unused files, dependencies and exports
+            run: vp run knip
 
   test:
     name: Unit tests (${{ matrix.os }})

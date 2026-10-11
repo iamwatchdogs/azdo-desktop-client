@@ -1,0 +1,34 @@
+# git autocrlf=true on Windows would rewrite LF to CRLF in the index, which
+# breaks the formatter's endOfLine: "lf" (vite.config.ts) and turns the
+# `.vite-hooks/*` shims into scripts /bin/sh cannot parse.
+* text=auto eol=lf
+
+# Hooks are executed by sh, never by cmd.exe: they must stay LF and keep +x.
+.vite-hooks/** text eol=lf
+
+# Windows batch files need CRLF for cmd.exe to parse them reliably.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets must never be line-ending converted or diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.wasm binary
+*.mp3 binary
+*.mp4 binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+
+# Generated files: keep them out of diffs and language stats.
+pnpm-lock.yaml linguist-generated=true -diff
+**/routeTree.gen.ts linguist-generated=true -diff

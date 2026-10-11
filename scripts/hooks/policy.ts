@@ -1,14 +1,7 @@
-import {
-  addedLinesForFile,
-  changedFilesInRange,
-  gitBuffer,
-  gitQuiet,
-  stagedFiles,
-  type AddedLine,
-} from "./lib/git.ts";
+import { addedLinesForFile, gitBuffer, gitQuiet, stagedFiles, type AddedLine } from "./lib/git.ts";
 
 export interface CheckOutcome {
-  status: "passed" | "failed" | "skipped";
+  status: "passed" | "failed";
   output: string;
 }
 
@@ -18,7 +11,14 @@ export interface Violation {
   message: string;
 }
 
-const MAX_COMMIT_FILE_BYTES = Number(process.env["ADO_HOOKS_MAX_FILE_BYTES"] ?? 500 * 1024 * 1024);
+/**
+ * Largest file allowed in a commit.
+ *
+ * 100 MiB matches GitHub's hard per-file limit, so anything this rejects would
+ * be rejected by the remote anyway — better to fail at commit time with a
+ * reason than at push time with a 413.
+ */
+const MAX_COMMIT_FILE_BYTES = Number(process.env["ADO_HOOKS_MAX_FILE_BYTES"] ?? 100 * 1024 * 1024);
 
 const MIB = 1024 * 1024;
 const MAX_KEY_SCAN_BYTES = 2 * MIB;
@@ -136,14 +136,6 @@ export function checkConflictMarkersStaged(root: string, files: readonly string[
   return scanConflictMarkers(root, files, STAGED_DIFF_ARGS);
 }
 
-export function checkConflictMarkersInRange(root: string, range: string): Violation[] {
-  return scanConflictMarkers(root, changedFilesInRange(root, range), [
-    "diff",
-    "--diff-filter=ACMR",
-    range,
-  ]);
-}
-
 /** Exported for unit tests: which files a debug-statement rule applies to. */
 export function debugRuleAppliesToFile(rule: DebugRule, file: string): boolean {
   return debugRuleApplies(rule, file);
@@ -214,12 +206,26 @@ export function checkPrivateKeys(root: string): Violation[] {
   return stagedFiles(root).flatMap((file) => privateKeyViolationsInFile(root, file));
 }
 
-function largeFileViolationsInFile(root: string, file: string): Violation[] {
-  const size = blobSize(root, `:${file}`);
-  if (size === null || size < MAX_COMMIT_FILE_BYTES) return [];
+/**
+ * The size rule over an already-measured blob, exported for unit tests.
+ *
+ * A file exactly at the limit passes: the message says "exceeds", so flagging
+ * the boundary would print "100.0 MiB exceeds 100 MiB limit" for a file that
+ * did not exceed it.
+ *
+ * `size` of null means the blob could not be measured (deleted, or a path that
+ * is not a blob), which is treated as "not oversized" rather than a failure.
+ */
+export function largeFileViolation(file: string, size: number | null): Violation | null {
+  if (size === null || size <= MAX_COMMIT_FILE_BYTES) return null;
   const actual = (size / MIB).toFixed(1);
   const limit = (MAX_COMMIT_FILE_BYTES / MIB).toFixed(0);
-  return [{ file, line: null, message: `${actual} MiB exceeds ${limit} MiB limit` }];
+  return { file, line: null, message: `${actual} MiB exceeds ${limit} MiB limit` };
+}
+
+function largeFileViolationsInFile(root: string, file: string): Violation[] {
+  const violation = largeFileViolation(file, blobSize(root, `:${file}`));
+  return violation === null ? [] : [violation];
 }
 
 export function checkLargeFiles(root: string): Violation[] {

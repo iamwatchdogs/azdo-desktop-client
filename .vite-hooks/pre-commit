@@ -1,9 +1,14 @@
 #!/usr/bin/env sh
-# Vite+ hook shim: staged-file checks on commit.
+# Vite+ hook shim: staged-file checks + affected tests on commit.
 #
-# Everything here is declared in vite.config.ts:
-#   staged.*  -> lint-staged checks (vp check --fix, policies)
-# Declared tasks are declared under run.tasks and invoked from the pre-push hook.
+# The commit-time policy is declared in vite.config.ts:
+#   staged.*        -> lint-staged checks (vp check --fix, policies)
+#   run.tasks tests:changed -> only the specs this commit actually touches
+#
+# Tests are scoped, not skipped: `GITHOOK_BASE` is HEAD, so `vitest --changed`
+# and Playwright's `--only-changed` select the specs affected by what you are
+# committing. A commit that breaks an unrelated spec stays green, which is the
+# point — the full matrix runs in the push gate.
 #
 # `cd` to the repository root is deliberate: `vp staged` reads the `staged`
 # block from the root vite.config.ts and fails when invoked from a workspace
@@ -23,4 +28,8 @@ case "$branch" in
     ;;
 esac
 
-exec vp staged
+vp staged || exit 1
+
+GITHOOK_BASE=HEAD
+export GITHOOK_BASE
+exec vp run tests:changed

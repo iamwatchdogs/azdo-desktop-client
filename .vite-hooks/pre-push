@@ -6,10 +6,14 @@
 # together. This script only does the two things Vite+ does not provide:
 #
 #   1. Resolve the SHA this push is compared against, and export it as
-#      GITHOOK_BASE so range-scoped tasks (gitleaks, semgrep, vitest) work.
+#      GITHOOK_BASE so range-scoped tasks (gitleaks, semgrep) work.
 #   2. Refuse to run if a security scanner is missing (fail closed).
 #
-# Bypasses: SKIP_OSV=1 (known pre-existing advisories), VP_GIT_HOOKS=0.
+# Tests are NOT selected here: push-gate runs `tests:all`, the unfiltered
+# suite. Unlike pre-commit there is no cheap "only what changed" shortcut
+# here — the whole point of pushing is to prove the branch is green.
+#
+# Bypasses: VP_GIT_HOOKS=0 (per docs/guide/commit-hooks.md).
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 remote="${1:-origin}"
@@ -47,16 +51,18 @@ fi
 
 # Fail closed on the security gates: a scanner that is not installed must not
 # silently become a passing check.
+#
+# osv-scanner is deliberately absent from this list. The `deps` task is parked
+# out of `push-gate` (see vite.config.ts) because the lockfile carries known
+# pre-existing advisories, so requiring the binary here would fail every push
+# for a check that no longer runs.
 missing=""
 for tool in gitleaks semgrep; do
   command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
 done
-if [ "${SKIP_OSV:-}" != "1" ]; then
-  command -v osv-scanner >/dev/null 2>&1 || missing="$missing osv-scanner"
-fi
 if [ -n "$missing" ]; then
   echo "pre-push: missing security scanner(s):$missing" >&2
-  echo "  Install with brew, or set SKIP_OSV=1 to bypass the dependency scan." >&2
+  echo "  Install with brew, or set VP_GIT_HOOKS=0 to bypass the gate." >&2
   exit 1
 fi
 

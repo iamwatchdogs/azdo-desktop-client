@@ -2,9 +2,12 @@
  * Staged-diff policy checks — the one thing no bundled tool does.
  *
  * `vp staged` and `vp check` cover formatting, linting, and type checks. These
- * four rules read the *added lines* of the index, which nothing in the toolchain
+ * four rules inspect the staged content itself, which nothing in the toolchain
  * exposes, so they stay as code. Every other check is declared in
  * vite.config.ts and executed by Vite Task.
+ *
+ * Two read only the *added lines* of the index (debug statements, conflict
+ * markers); the other two read the whole staged blob (private keys, size).
  *
  * Takes no arguments: it reads the index itself rather than the file list
  * lint-staged appends, so it behaves identically whichever hook invoked it.

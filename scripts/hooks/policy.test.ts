@@ -15,6 +15,7 @@ import {
   debugViolationsInFile,
   isConflictMarker,
   fileOptsOut,
+  largeFileViolation,
   privateKeyViolationsInText,
 } from "./policy.ts";
 
@@ -138,6 +139,24 @@ describe("private keys", () => {
   it("honours the allow marker", () => {
     const pem = "-----BEGIN RSA PRIVATE KEY-----\n// detect-private-key: allow";
     expect(privateKeyViolationsInText("fixture.pem", pem)).toHaveLength(0);
+  });
+});
+
+describe("oversized files", () => {
+  const MIB = 1024 * 1024;
+
+  it("allows a file at the limit", () => {
+    expect(largeFileViolation("a.bin", 100 * MIB)).toBeNull();
+  });
+
+  it("rejects a file just over the limit and names both sizes", () => {
+    const violation = largeFileViolation("a.bin", 100 * MIB + 1);
+    expect(violation?.message).toBe("100.0 MiB exceeds 100 MiB limit");
+    expect(violation?.line).toBeNull();
+  });
+
+  it("treats an unmeasurable blob as not oversized", () => {
+    expect(largeFileViolation("deleted.bin", null)).toBeNull();
   });
 });
 

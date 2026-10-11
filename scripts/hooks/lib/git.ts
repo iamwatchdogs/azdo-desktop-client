@@ -47,25 +47,6 @@ export function stagedFiles(root: string): string[] {
   return splitNul(git(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"], root));
 }
 
-/** Files changed in `range` (added, copied, modified, renamed). */
-export function changedFilesInRange(root: string, range: string): string[] {
-  return splitNul(git(["diff", "--name-only", "--diff-filter=ACMR", "-z", range], root));
-}
-
-/**
- * True when `git merge-base <base> HEAD` resolves.
- *
- * On a shallow clone it does not, and affected-test selection (`vitest
- * --changed`, `playwright --only-changed`) silently reports "no test files"
- * with a zero exit code. Callers use this to fail loudly instead.
- *
- * Both ends of the range matter: a merge compares HEAD against MERGE_HEAD, so
- * a guard that only checked HEAD would pass trivially and prove nothing.
- */
-export function mergeBaseResolves(root: string, base: string, tip = "HEAD"): boolean {
-  return gitQuiet(["merge-base", base, tip], root) !== null;
-}
-
 export interface AddedLine {
   line: number;
   text: string;

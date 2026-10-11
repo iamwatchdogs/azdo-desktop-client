@@ -1,14 +1,21 @@
 #!/usr/bin/env sh
-# Vite+ hook shim: guard the merge commit.
+# Vite+ hook shim: the merge guard.
 #
 # Git invokes this only from the `git merge` builtin, and only when the merge
 # completes on its own. The path that matters most is different: when a merge
 # conflicts, you resolve it and finish with `git commit`, which runs
-# pre-commit instead — and pre-commit runs this same script via `vp staged`.
-# So both merge paths are covered, just by different hooks.
+# pre-commit instead — and pre-commit runs these same policy checks via
+# `vp staged`. So both merge paths are covered, just by different hooks.
+#
+# Merges run the FULL test suite, not the changed-scoped selection pre-commit
+# uses. A merge can pull in commits you never touched, so "what changed since
+# HEAD" is the wrong question here — `tests:all` is the right one.
 #
 # Git already refuses a commit with unmerged files. The case this adds is a
 # conflict "resolved" by `git add` without deleting the markers: git accepts
 # that, and only this check catches it.
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec node scripts/hooks/policies.ts
+
+node scripts/hooks/policies.ts || exit 1
+
+exec vp run tests:all

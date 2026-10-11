@@ -31,7 +31,7 @@
     "perf": "error"
   },
 
-  "jsPlugins": ["@shadcn/lint"],
+  "jsPlugins": ["@shadcn/lint", "oxlint-plugin-complexity"],
   "settings": {
     "shadcn": { "ui": "apps/renderer/src" }
   },
@@ -99,13 +99,14 @@
     "promise/always-return": "off",
 
     "max-classes-per-file": "off",
-    "max-depth": "off",
+    "max-depth": ["error", 4],
     "max-lines": "off",
     "max-lines-per-function": "off",
     "max-nested-callbacks": "off",
     "max-params": "off",
     "max-statements": "off",
     "complexity": "off",
+    "complexity/complexity": ["error", { "cyclomatic": 20, "cognitive": 15, "minLines": 5 }],
     "import/max-dependencies": "off",
     "vitest/require-to-throw-message": "off",
 

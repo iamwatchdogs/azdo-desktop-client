@@ -1,0 +1,20 @@
+# CodeRabbit configuration — deterministic (non-LLM) static tooling for pull
+# request reviews. The local `coderabbit` CLI is LLM-driven; this file enables
+# the analyzer suite that needs no model.
+reviews:
+  profile: chill
+  tools:
+    oxlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    osvScanner:
+      enabled: true
+    semgrep:
+      enabled: true
+    shellcheck:
+      enabled: true
+    actionlint:
+      enabled: true
+    markdownlint:
+      enabled: true

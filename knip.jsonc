@@ -6,6 +6,7 @@
   // features land (tw-animate-css/typography via CSS imports knip does not follow).
   "ignoreDependencies": [
     "oxlint",
+    "oxlint-plugin-complexity",
     "oxfmt",
     "tailwindcss",
     "@base-ui/react",
@@ -25,7 +26,15 @@
   ],
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.ts", "*.config.ts"],
+      "entry": [
+        "scripts/*.ts",
+        "scripts/hooks/*.ts",
+        "scripts/hooks/pre-merge-commit.ts",
+        "scripts/hooks/checks/*.ts",
+        "scripts/hooks/lib/*.ts",
+        "scripts/hooks/**/*.test.ts",
+        "*.config.ts",
+      ],
       "project": ["scripts/**/*.ts", "*.config.ts"],
     },
     "apps/desktop": {

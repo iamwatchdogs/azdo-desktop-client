@@ -1,8 +1,12 @@
 #!/usr/bin/env sh
-# Quality gate before pushing.
-set -e
-
-vp fmt -c .oxfmtrc.json --check
-vp lint -c .oxlintrc.json
-vp run -r typecheck
-tsx scripts/architecture-check.ts
+# Vite+ hook shim -> project-owned dispatcher.
+# Keep this to wiring only; policy lives in hooks.config.ts.
+#
+# `cd` to the repository root is deliberate: `vp staged` reads the `staged`
+# block from the root vite.config.ts, and fails when invoked from a workspace
+# package (voidzero-dev/vite-plus#2177). Do not "simplify" it away.
+#
+# `exec` (not a subshell) so git's pre-push stdin reaches the dispatcher, which
+# reads the local/remote SHAs to resolve the comparison range.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec node scripts/hooks/pre-push.ts "$@"

@@ -40,6 +40,9 @@ pnpm dev         # renderer dev server + main/preload watch build + Electron
 | `pnpm lint` / `pnpm fmt` | Oxlint / Oxfmt via `vp lint -c` / `vp fmt -c`                                                                                                  |
 | `pnpm knip`              | Unused files, dependencies, exports                                                                                                            |
 | `pnpm arch:check`        | ts-morph architecture guard                                                                                                                    |
+| `pnpm check:complexity`  | Cognitive/cyclomatic complexity gate (`oxlint-plugin-complexity`)                                                                              |
+| `pnpm hooks:pre-commit`  | Runs the pre-commit gate outside a `git commit`                                                                                                |
+| `pnpm hooks:pre-push`    | Runs the pre-push gate outside a `git push`                                                                                                    |
 | `pnpm dist`              | electron-builder packaging                                                                                                                     |
 
 ## Workspace layout
@@ -117,9 +120,31 @@ resolves to a single copy.
   domain-specific — add when a feature needs them.
 - **Git hooks**: `pnpm install` runs `prepare` → `vp config --no-agent`, which
   installs the dispatcher into `.vite-hooks/_` (generated, self-ignored) and sets
-  `core.hooksPath`. Project-owned scripts: `.vite-hooks/pre-commit` (formats staged
-  files) and `.vite-hooks/pre-push` (fmt check + strict lint + typecheck + arch guard).
-  `VP_GIT_HOOKS=0 git commit …` bypasses a single run.
+  `core.hooksPath`. Project-owned scripts: `.vite-hooks/pre-commit` and
+  `.vite-hooks/pre-push` — both delegate to `tsx scripts/hooks/*.ts`, which run
+  every check concurrently (`Promise.all`, buffered per-check output, all failures
+  reported at once). `VP_GIT_HOOKS=0 git commit|push …` bypasses a run.
+
+  **pre-commit** — formatting runs first (`vp staged` rewrites staged files and
+  re-stages them), then in parallel: `lint` (oxlint, type-aware), `complexity`
+  (cognitive/cyclomatic), `typecheck`, `ast-check` (the ts-morph architecture
+  guard), `debug-statements`, `detect-private-key`, `check-added-large-files`,
+  `check-merge-conflict`. A branch guard runs first: committing on `main`/`master`
+  is refused (override once with `ALLOW_MAIN=1`).
+  **pre-push** — in parallel over the resolved push range `base..HEAD`:
+  `fmt:check`, `lint`, `complexity`, `typecheck`, `ast-check`, `knip`, `gitleaks`,
+  `osv-scanner`, `semgrep`, `check-merge-conflict`, `tests (vitest)`
+  (only tests affected by the range), `tests (playwright e2e)` (builds, then only
+  changed specs when the range touches app code), `codacy`, `coderabbit-advisory`.
+  Tools that aren't installed skip with an install hint instead of failing. Bypass
+  individual optional checks with `SKIP_OSV=1`, `SKIP_E2E=1`,
+  `CODERABBIT_ADVISORY=1` (opt-in, since it is LLM-driven).
+  Install the optional scanners with `brew install gitleaks osv-scanner semgrep`.
+  - `.semgrep/` holds the deterministic SAST rules used by the pre-push gate;
+    `.coderabbit.yaml` enables the matching non-LLM analyzers for PR reviews.
+  - `check-added-large-files` uses a 500 MB staged-blob threshold; override with
+    `ADO_HOOKS_MAX_FILE_BYTES`.
+
 - **pnpm 12 gates**: `allowBuilds` approves install scripts (electron, ffi-rs,
   keyring, xa11y, electron-winstaller, esbuild). `minimumReleaseAge: 0` disables the
   default 24-hour freshness gate so pinned latest versions install deterministically —

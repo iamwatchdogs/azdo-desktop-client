@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // Hook entrypoints run under `node`, which resolves explicit .ts specifiers
+    // via native type stripping. Keep imports written that way.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["**/*.ts"]
+}

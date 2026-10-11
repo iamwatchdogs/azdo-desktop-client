@@ -16,6 +16,9 @@ test-results
 blob-report
 .playwright
 
+# codacy-cli local logs
+.codacy/logs/
+
 # os / editor
 .DS_Store
 

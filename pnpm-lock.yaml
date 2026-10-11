@@ -257,6 +257,9 @@ catalogs:
     oxlint:
       specifier: 1.87.0
       version: 1.87.0
+    oxlint-plugin-complexity:
+      specifier: 3.0.1
+      version: 3.0.1
     react-markdown:
       specifier: 10.1.0
       version: 10.1.0
@@ -317,6 +320,9 @@ importers:
       oxlint:
         specifier: 'catalog:'
         version: 1.87.0(oxlint-tsgolint@7.0.2003)(vite-plus@1.1.0(@types/node@26.6.5)(@vitest/ui@5.0.3)(esbuild@0.28.2)(jiti@2.7.0)(playwright@1.64.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1))
+      oxlint-plugin-complexity:
+        specifier: 'catalog:'
+        version: 3.0.1(diff@8.0.4)(estree-walker@3.0.3)(oxc-parser@0.153.0)
       ts-morph:
         specifier: 'catalog:'
         version: 28.0.0
@@ -3979,6 +3985,21 @@ packages:
       svelte:
         optional: true
       vite-plus:
+        optional: true
+
+  oxlint-plugin-complexity@3.0.1:
+    resolution: {integrity: sha512-POwapzA4N6tCU/Hy2VFf6x42Ku3uLpsc3QvW8QMVpuF7gQB4kRB0FACanUxrJsf/3Z5NzDoAh5Ta7VSYauV1Qg==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      diff: '>=5.0.0'
+      estree-walker: '>=3.0.0'
+      oxc-parser: '>=0.60.0'
+    peerDependenciesMeta:
+      diff:
+        optional: true
+      estree-walker:
+        optional: true
+      oxc-parser:
         optional: true
 
   oxlint-tsgolint@7.0.2003:
@@ -8082,6 +8103,14 @@ snapshots:
       '@oxfmt/binding-win32-ia32-msvc': 0.72.0
       '@oxfmt/binding-win32-x64-msvc': 0.72.0
       vite-plus: 1.1.0(@types/node@26.6.5)(@vitest/ui@5.0.3)(esbuild@0.28.2)(jiti@2.7.0)(playwright@1.64.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
+  oxlint-plugin-complexity@3.0.1(diff@8.0.4)(estree-walker@3.0.3)(oxc-parser@0.153.0):
+    dependencies:
+      '@oxlint/plugins': 1.79.0
+    optionalDependencies:
+      diff: 8.0.4
+      estree-walker: 3.0.3
+      oxc-parser: 0.153.0
 
   oxlint-tsgolint@7.0.2003:
     optionalDependencies:

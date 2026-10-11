@@ -1,0 +1,26 @@
+# Gitleaks configuration.
+#
+# Default rules plus a narrow, justified exception: test files embed literal
+# secret markers as fixtures. Without this, `policy.test.ts` (which asserts the
+# private-key detector fires) is reported as a leak, and a guardrail that
+# cries wolf on its own test suite is a guardrail people learn to bypass.
+#
+# Scope is deliberately tight: test files only. Anything else that matches a
+# rule still blocks the push.
+
+title = "azure-devops-app gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures embed literal secret markers by design"
+paths = [
+  '''(^|/)[^/]*\.(test|spec)\.[cm]?[jt]sx?$''',
+  '''(^|/)__tests__/''',
+  '''(^|/)tests?/fixtures?/''',
+]
+
+[[allowlists]]
+description = "Lockfiles carry hashes that trip entropy-based rules"
+paths = ['''(^|/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock)$''']

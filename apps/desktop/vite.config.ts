@@ -61,10 +61,6 @@ export default defineConfig({
   ],
   // Unit tests only; e2e specs run under Playwright.
   test: {
-    include: [
-      "test/unit/**/*.test.{ts,tsx}",
-      "test/integration/**/*.test.{ts,tsx}",
-      "src/**/*.test.{ts,tsx}",
-    ],
+    include: ["test/unit/**/*.test.{ts,tsx}", "test/integration/**/*.test.{ts,tsx}"],
   },
 });

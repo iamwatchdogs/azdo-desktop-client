@@ -1,3 +1,5 @@
+import "vite-plus/test/config";
+
 import { defineConfig } from "vite-plus";
 
 /**
@@ -215,6 +217,13 @@ export default defineConfig({
    *
    * `vp check --fix` = format + lint + type-aware lint in one pass.
    */
+  // Unit tests for the git-hook policy layer (scripts/hooks). These run in the
+  // root workspace only; each app/package owns its own Vitest block.
+  test: {
+    environment: "node",
+    include: ["scripts/**/*.test.ts"],
+  },
+
   staged: {
     "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css,html,yml,yaml,sh,md}": "vp check --fix",
     "**/*": "node scripts/hooks/policies.ts",

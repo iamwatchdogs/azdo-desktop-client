@@ -27,9 +27,10 @@
   "workspaces": {
     ".": {
       // Entry points are the executables the hooks invoke, plus the test files
-      // vitest.config.ts collects. Everything else under scripts/ stays in
-      // `project` so knip can reach its exports — listing a library file here
-      // would exempt every export it has from the unused-export check.
+      // the root `test` block in vite.config.ts collects. Everything else under
+      // scripts/ stays in `project` so knip can reach its exports — listing a
+      // library file here would exempt every export it has from the
+      // unused-export check.
       "entry": [
         "scripts/architecture-check.ts",
         "scripts/hooks/policies.ts",

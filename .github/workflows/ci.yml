@@ -313,8 +313,15 @@ jobs:
 
       # Same invocation as the local `deps` task, so the acceptances in
       # .osv-scanner.toml mean the same thing in both places.
+      #
+      # The subdirectory is load-bearing. At this pin the repo-root action.yml is
+      # metadata only (name/description/branding, no `runs:`), so the bare
+      # `google/osv-scanner-action@<sha>` reference dies at "Prepare all required
+      # actions" with "Top level 'runs:' section is required" -- the Docker action
+      # itself lives one level down. Pointing at the root is not a downgrade to
+      # reject; it is an action that cannot start.
       - name: Scan the lockfile for known advisories
-        uses: google/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |-
             scan source

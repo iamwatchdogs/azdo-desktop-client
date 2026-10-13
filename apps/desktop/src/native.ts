@@ -40,6 +40,64 @@ export async function checkAccessibility(): Promise<CapabilityResult> {
 const NO_SESSION_BUS = "no session bus (expected outside a Linux desktop session)";
 
 /**
+ * The slice of a dbus-next bus this probe drives. Narrow on purpose: the probe
+ * only listens for two events and closes the bus, so a test double needs no
+ * native module and no session bus.
+ */
+export interface DbusBus {
+  once(event: "connect" | "error", handler: () => void): void;
+  disconnect(): void;
+}
+
+/**
+ * Runs the probe against `open`, which yields the bus or the reason it is
+ * unavailable. Taking the opener as a parameter is what lets the connect race,
+ * the deadline and the scope close be driven directly; probeDbus is this with
+ * the real opener wired in.
+ */
+export function probeOpenBus(
+  open: Effect.Effect<DbusBus, string>,
+): Effect.Effect<CapabilityResult> {
+  return Effect.scoped(
+    Effect.gen(function* () {
+      // acquireRelease is what makes disconnect run on every path below.
+      const bus = yield* Effect.acquireRelease(open, (opened) =>
+        Effect.sync(() => {
+          try {
+            opened.disconnect();
+          } catch {
+            // A bus that never connected is already torn down, and its
+            // disconnect throwing must not turn a reported probe into a
+            // defect.
+          }
+        }),
+      );
+
+      return yield* Effect.callback<boolean>((resume) => {
+        const timeout = setTimeout(() => resume(Effect.succeed(false)), 2_000);
+        const settle = (value: boolean) => {
+          clearTimeout(timeout);
+          resume(Effect.succeed(value));
+        };
+        bus.once("connect", () => settle(true));
+        bus.once("error", () => settle(false));
+      }).pipe(
+        Effect.timeout("2 seconds"),
+        Effect.orElseSucceed(() => false),
+      );
+    }),
+  ).pipe(
+    Effect.match({
+      onSuccess: (connected) =>
+        connected
+          ? { ok: true, detail: "session bus reachable" }
+          : { ok: false, detail: NO_SESSION_BUS },
+      onFailure: (reason) => ({ ok: false, detail: `${NO_SESSION_BUS}: ${reason}` }),
+    }),
+  );
+}
+
+/**
  * dbus-next — Linux session bus.
  *
  * Expressing the connect race as an Effect rather than a hand-rolled promise
@@ -53,7 +111,7 @@ const NO_SESSION_BUS = "no session bus (expected outside a Linux desktop session
  */
 export async function probeDbus(): Promise<CapabilityResult> {
   return Effect.runPromise(
-    Effect.scoped(
+    probeOpenBus(
       Effect.gen(function* () {
         // dbus-next throws while its module initialises on a host with no dbus
         // address, so the import itself has to be in the failure channel.
@@ -62,43 +120,10 @@ export async function probeDbus(): Promise<CapabilityResult> {
           catch: describeError,
         });
         // sessionBus() throws synchronously where there is no session bus.
-        const bus = yield* Effect.acquireRelease(
-          Effect.try({
-            try: () => sessionBus(),
-            catch: describeError,
-          }),
-          // A bus that never connected is already torn down, and its
-          // disconnect throwing must not turn a reported probe into a defect.
-          (open) =>
-            Effect.sync(() => {
-              try {
-                open.disconnect();
-              } catch {
-                // already disconnected
-              }
-            }),
-        );
-
-        return yield* Effect.callback<boolean>((resume) => {
-          const timeout = setTimeout(() => resume(Effect.succeed(false)), 2_000);
-          const settle = (value: boolean) => {
-            clearTimeout(timeout);
-            resume(Effect.succeed(value));
-          };
-          bus.once("connect", () => settle(true));
-          bus.once("error", () => settle(false));
-        }).pipe(
-          Effect.timeout("2 seconds"),
-          Effect.orElseSucceed(() => false),
-        );
-      }),
-    ).pipe(
-      Effect.match({
-        onSuccess: (connected) =>
-          connected
-            ? { ok: true, detail: "session bus reachable" }
-            : { ok: false, detail: NO_SESSION_BUS },
-        onFailure: (reason) => ({ ok: false, detail: `${NO_SESSION_BUS}: ${reason}` }),
+        return yield* Effect.try({
+          try: () => sessionBus() as unknown as DbusBus,
+          catch: describeError,
+        });
       }),
     ),
   );

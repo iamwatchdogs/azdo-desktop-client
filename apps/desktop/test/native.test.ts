@@ -33,15 +33,22 @@ it.effect("resolves within the probe deadline instead of hanging", () =>
   }).pipe(Effect.timeout("10 seconds")),
 );
 
-it.effect("handles the missing-bus host the same way the old impl did", () =>
+it.effect("keeps the reason the session bus was unavailable", () =>
   Effect.promise(async () => {
     const result = await probeDbus();
     // On a machine with no session bus both impls must report not-available
     // rather than throw: the IPC handler answers the probe on any platform.
     if (result.ok) {
       expect(result.detail).toBe("session bus reachable");
-    } else {
-      expect(result.detail).toBe("no session bus (expected outside a Linux desktop session)");
+      return;
     }
+    // The probe never collapses a failure to a bare "no session bus": a host
+    // with a stale DBUS_SESSION_BUS_ADDRESS still has to be diagnosable, which
+    // is what the pre-Effect implementation reported through describeError.
+    expect(result.detail).toMatch(/^no session bus \(expected outside a Linux desktop session\)/);
+    const reason = result.detail.slice(
+      "no session bus (expected outside a Linux desktop session): ".length,
+    );
+    expect(reason.length).toBeGreaterThan(0);
   }),
 );

@@ -37,6 +37,8 @@ export async function checkAccessibility(): Promise<CapabilityResult> {
   }
 }
 
+const NO_SESSION_BUS = "no session bus (expected outside a Linux desktop session)";
+
 /**
  * dbus-next — Linux session bus.
  *
@@ -44,11 +46,13 @@ export async function checkAccessibility(): Promise<CapabilityResult> {
  * keeps the whole attempt inside one scope: Effect.acquireRelease guarantees
  * disconnect runs on every path, and dbus-next's import-time and call-time
  * throws stay in the failure channel instead of escaping as defects. A missing
- * session bus is an expected state outside a Linux desktop session, so the
- * channel collapses to the not-available result and this function never throws.
+ * session bus is an expected state outside a Linux desktop session, so this
+ * function reports it as a result rather than throwing, and keeps the reason:
+ * a host with a stale DBUS_SESSION_BUS_ADDRESS is still a host an operator
+ * needs told about.
  */
 export async function probeDbus(): Promise<CapabilityResult> {
-  const connected = await Effect.runPromise(
+  return Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         // dbus-next throws while its module initialises on a host with no dbus
@@ -58,12 +62,21 @@ export async function probeDbus(): Promise<CapabilityResult> {
           catch: describeError,
         });
         // sessionBus() throws synchronously where there is no session bus.
-        const scopedBus = yield* Effect.acquireRelease(
+        const bus = yield* Effect.acquireRelease(
           Effect.try({
             try: () => sessionBus(),
             catch: describeError,
           }),
-          (open) => Effect.sync(() => open.disconnect()),
+          // A bus that never connected is already torn down, and its
+          // disconnect throwing must not turn a reported probe into a defect.
+          (open) =>
+            Effect.sync(() => {
+              try {
+                open.disconnect();
+              } catch {
+                // already disconnected
+              }
+            }),
         );
 
         return yield* Effect.callback<boolean>((resume) => {
@@ -72,19 +85,23 @@ export async function probeDbus(): Promise<CapabilityResult> {
             clearTimeout(timeout);
             resume(Effect.succeed(value));
           };
-          scopedBus.once("connect", () => settle(true));
-          scopedBus.once("error", () => settle(false));
+          bus.once("connect", () => settle(true));
+          bus.once("error", () => settle(false));
         }).pipe(
           Effect.timeout("2 seconds"),
           Effect.orElseSucceed(() => false),
         );
       }),
-    ).pipe(Effect.orElseSucceed(() => false)),
+    ).pipe(
+      Effect.match({
+        onSuccess: (connected) =>
+          connected
+            ? { ok: true, detail: "session bus reachable" }
+            : { ok: false, detail: NO_SESSION_BUS },
+        onFailure: (reason) => ({ ok: false, detail: `${NO_SESSION_BUS}: ${reason}` }),
+      }),
+    ),
   );
-
-  return connected
-    ? { ok: true, detail: "session bus reachable" }
-    : { ok: false, detail: "no session bus (expected outside a Linux desktop session)" };
 }
 
 /** ffi-rs — resolve getpid() through libSystem / libc / kernel32. */

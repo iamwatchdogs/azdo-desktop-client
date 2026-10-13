@@ -41,9 +41,6 @@ function moduleSpecifiers(file: (typeof sourceFiles)[number]): string[] {
 
 const EFFECT_SPECIFIER = /^effect(?:\/|$)/;
 
-/** Mirrors Effect's own agentic reference repo: no Effect past the process edge. */
-const EFFECT_BANNED_IN = /(?:^|\/)(?:renderer|preload)\//;
-
 const violations: string[] = [];
 
 for (const file of sourceFiles) {
@@ -52,9 +49,10 @@ for (const file of sourceFiles) {
 
   const inPackages = relativePath.startsWith("packages/");
   const inRenderer = relativePath.includes("/renderer/");
-  const inMainProcess =
-    relativePath.startsWith("apps/desktop/src/main") ||
-    relativePath.startsWith("apps/desktop/src/preload");
+  // preload.ts is a file, not a directory: match it the way the React rule
+  // below does rather than by a path pattern, so the two cannot drift apart.
+  const inPreload = relativePath.startsWith("apps/desktop/src/preload");
+  const inMainProcess = relativePath.startsWith("apps/desktop/src/main") || inPreload;
 
   for (const specifier of moduleSpecifiers(file)) {
     if (inPackages && (specifier.startsWith("@ado/desktop") || specifier.includes("/apps/"))) {
@@ -77,7 +75,7 @@ for (const file of sourceFiles) {
     // error crosses as a bare {} and an Effect throws DataCloneError. Effect
     // therefore lives only in the main process, and the boundary is a rule
     // rather than a convention so an agent cannot erode it.
-    if ((inPackages || EFFECT_BANNED_IN.test(relativePath)) && EFFECT_SPECIFIER.test(specifier)) {
+    if ((inPackages || inRenderer || inPreload) && EFFECT_SPECIFIER.test(specifier)) {
       violations.push(
         `${relativePath}: effect must stay out of shared code and the renderer (${specifier})`,
       );

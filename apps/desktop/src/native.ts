@@ -1,4 +1,5 @@
 import type { CapabilityResult } from "@ado/shared";
+import { Effect } from "effect";
 
 // Imports are lazy: a missing platform prebuild must not kill the main process.
 function describeError(error: unknown): string {
@@ -36,34 +37,54 @@ export async function checkAccessibility(): Promise<CapabilityResult> {
   }
 }
 
-/** dbus-next — Linux session bus. */
+/**
+ * dbus-next — Linux session bus.
+ *
+ * Expressing the connect race as an Effect rather than a hand-rolled promise
+ * keeps the whole attempt inside one scope: Effect.acquireRelease guarantees
+ * disconnect runs on every path, and dbus-next's import-time and call-time
+ * throws stay in the failure channel instead of escaping as defects. A missing
+ * session bus is an expected state outside a Linux desktop session, so the
+ * channel collapses to the not-available result and this function never throws.
+ */
 export async function probeDbus(): Promise<CapabilityResult> {
-  try {
-    const { sessionBus } = await import("dbus-next");
-    // sessionBus() starts connecting now; the bus emits connect/error.
-    const bus = sessionBus();
-    const connected = await new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => resolve(false), 2_000);
-      bus.once("connect", () => {
-        clearTimeout(timeout);
-        resolve(true);
-      });
-      bus.once("error", () => {
-        clearTimeout(timeout);
-        resolve(false);
-      });
-    });
-    try {
-      bus.disconnect();
-    } catch {
-      // A failed connection is already torn down.
-    }
-    return connected
-      ? { ok: true, detail: "session bus reachable" }
-      : { ok: false, detail: "no session bus (expected outside a Linux desktop session)" };
-  } catch (error) {
-    return { ok: false, detail: describeError(error) };
-  }
+  const connected = await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        // dbus-next throws while its module initialises on a host with no dbus
+        // address, so the import itself has to be in the failure channel.
+        const { sessionBus } = yield* Effect.tryPromise({
+          try: () => import("dbus-next"),
+          catch: describeError,
+        });
+        // sessionBus() throws synchronously where there is no session bus.
+        const scopedBus = yield* Effect.acquireRelease(
+          Effect.try({
+            try: () => sessionBus(),
+            catch: describeError,
+          }),
+          (open) => Effect.sync(() => open.disconnect()),
+        );
+
+        return yield* Effect.callback<boolean>((resume) => {
+          const timeout = setTimeout(() => resume(Effect.succeed(false)), 2_000);
+          const settle = (value: boolean) => {
+            clearTimeout(timeout);
+            resume(Effect.succeed(value));
+          };
+          scopedBus.once("connect", () => settle(true));
+          scopedBus.once("error", () => settle(false));
+        }).pipe(
+          Effect.timeout("2 seconds"),
+          Effect.orElseSucceed(() => false),
+        );
+      }),
+    ).pipe(Effect.orElseSucceed(() => false)),
+  );
+
+  return connected
+    ? { ok: true, detail: "session bus reachable" }
+    : { ok: false, detail: "no session bus (expected outside a Linux desktop session)" };
 }
 
 /** ffi-rs — resolve getpid() through libSystem / libc / kernel32. */

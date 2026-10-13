@@ -39,6 +39,11 @@ function moduleSpecifiers(file: (typeof sourceFiles)[number]): string[] {
   return [...staticImports, ...staticReExports, ...dynamicImports].filter((spec) => spec !== "");
 }
 
+const EFFECT_SPECIFIER = /^effect(?:\/|$)/;
+
+/** Mirrors Effect's own agentic reference repo: no Effect past the process edge. */
+const EFFECT_BANNED_IN = /(?:^|\/)(?:renderer|preload)\//;
+
 const violations: string[] = [];
 
 for (const file of sourceFiles) {
@@ -66,6 +71,16 @@ for (const file of sourceFiles) {
         specifier === "@vitejs/plugin-react")
     ) {
       violations.push(`${relativePath}: process code must not import react (${specifier})`);
+    }
+    // Effect values do not survive contextBridge: structured clone drops the
+    // prototype getters and symbol keys they keep state behind, so a tagged
+    // error crosses as a bare {} and an Effect throws DataCloneError. Effect
+    // therefore lives only in the main process, and the boundary is a rule
+    // rather than a convention so an agent cannot erode it.
+    if ((inPackages || EFFECT_BANNED_IN.test(relativePath)) && EFFECT_SPECIFIER.test(specifier)) {
+      violations.push(
+        `${relativePath}: effect must stay out of shared code and the renderer (${specifier})`,
+      );
     }
   }
 }

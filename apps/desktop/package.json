@@ -16,6 +16,7 @@
     "@crowecawcaw/xa11y": "catalog:",
     "@napi-rs/keyring": "catalog:",
     "dbus-next": "catalog:",
+    "effect": "catalog:",
     "electron": "catalog:",
     "electron-store": "catalog:",
     "electron-updater": "catalog:",

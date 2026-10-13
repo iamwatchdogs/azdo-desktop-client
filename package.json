@@ -24,6 +24,7 @@
     "oxlint": "catalog:",
     "oxlint-plugin-complexity": "catalog:",
     "ts-morph": "catalog:",
+    "tsc-rs": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",

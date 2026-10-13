@@ -9,7 +9,7 @@
     "start": "electron .",
     "test": "vp test run --passWithNoTests",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@ado/shared": "workspace:*",

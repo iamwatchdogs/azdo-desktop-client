@@ -7,7 +7,7 @@
     "build": "vp build",
     "dev": "vp dev",
     "test": "vp test run --passWithNoTests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "catalog:",

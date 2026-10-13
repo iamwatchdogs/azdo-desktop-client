@@ -50,6 +50,34 @@ function effectRuntimeDependencies(): string[] {
   return Object.keys(manifest.dependencies ?? {});
 }
 
+/**
+ * tsconfig.base.json is JSONC: `//` lines and a `/** ... *` block. Strip both
+ * so the block can be parsed structurally rather than asserted as text.
+ */
+function tsconfigBase(): { compilerOptions: Record<string, unknown> } {
+  const raw = readFileSync(resolve(root, "tsconfig.base.json"), "utf8");
+  const json = raw
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !line.trimStart().startsWith("//"))
+    .join("\n");
+  return JSON.parse(json) as { compilerOptions: Record<string, unknown> };
+}
+
+function effectPlugin(): Record<string, unknown> {
+  const { compilerOptions } = tsconfigBase();
+  const plugins = compilerOptions["plugins"];
+  if (!Array.isArray(plugins)) throw new Error("tsconfig.base.json declares no compiler plugins");
+  const effect = plugins.find(
+    (plugin): plugin is Record<string, unknown> =>
+      typeof plugin === "object" &&
+      plugin !== null &&
+      (plugin as { name?: string }).name === "@effect/language-service",
+  );
+  if (effect === undefined) throw new Error("@effect/language-service plugin block is missing");
+  return effect;
+}
+
 describe("effect dependency resolution", () => {
   it("pins effect exactly in the catalog so no workspace can float it", () => {
     const pin = catalogPin();
@@ -63,5 +91,37 @@ describe("effect dependency resolution", () => {
 
   it("does not pull a runtime dependency tree into effect", () => {
     expect(effectRuntimeDependencies()).toEqual([]);
+  });
+
+  it("declares the language-service plugin tsc-rs runs, so the gate resolves", () => {
+    // knip fails the push gate when the plugin is referenced but undeclared,
+    // and an editor's tsserver cannot resolve it either.
+    const rootManifest = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(rootManifest.devDependencies["@effect/language-service"]).toBe("catalog:");
+    expect(effectPlugin()["name"]).toBe("@effect/language-service");
+  });
+
+  it("default-denies unstable Effect APIs except the one proven edge", () => {
+    const allowed = effectPlugin()["allowedUnstableApis"];
+    expect(allowed).toEqual(["@effect/vitest"]);
+    expect(effectPlugin()["allowedExperimentalApis"]).toEqual([]);
+
+    const severity = effectPlugin()["diagnosticSeverity"];
+    expect(typeof severity).toBe("object");
+    const severities = severity as Record<string, string>;
+    expect(severities["unstableApiUsage"]).toBe("error");
+    expect(severities["experimentalApiUsage"]).toBe("error");
+    expect(severities["anyUnknownInErrorContext"]).toBe("error");
+    expect(severities["leakingRequirements"]).toBe("error");
+  });
+
+  it("does not relax the global-I/O rules the main process needs", () => {
+    // main.ts is plain imperative tooling on purpose: it must be able to use
+    // node:path and console.warn without opting out line by line.
+    const severities = effectPlugin()["diagnosticSeverity"] as Record<string, string>;
+    expect(severities["nodeBuiltinImport"]).toBe("off");
+    expect(severities["globalConsole"]).toBe("off");
   });
 });

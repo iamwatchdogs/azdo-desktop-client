@@ -17,6 +17,7 @@
     "typecheck": "vp run -r typecheck"
   },
   "devDependencies": {
+    "@effect/language-service": "catalog:",
     "@shadcn/lint": "catalog:",
     "@types/node": "catalog:",
     "knip": "catalog:",

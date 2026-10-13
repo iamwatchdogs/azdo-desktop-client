@@ -23,6 +23,7 @@
     "ffi-rs": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "electron-builder": "catalog:",

@@ -155,6 +155,9 @@ export default defineConfig({
       "complexity/complexity": ["error", { cyclomatic: 20, cognitive: 15, minLines: 5 }],
       "import/max-dependencies": "off",
       "vitest/require-to-throw-message": "off",
+      // @effect/vitest's it.effect takes a generator, so the rule cannot see the
+      // test boundary and reports every expect inside one as standalone.
+      "vitest/no-standalone-expect": "off",
 
       "shadcn/no-restyle": "off",
       "shadcn/require-static-classes": "off",

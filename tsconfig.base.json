@@ -26,6 +26,56 @@
     "forceConsistentCasingInFileNames": true,
     "useDefineForClassFields": true,
 
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    /**
+     * Effect language-service diagnostics. tsc-rs has the 377xxx codes built
+     * in, so this block is a real typecheck gate here, not editor UX. The two
+     * stability rules are the load-bearing ones: they default-deny the unstable
+     * and experimental modules Effect may break in minor and patch releases,
+     * which is exactly the surface this repo refuses to build on.
+     */
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["effect"],
+        // The one sanctioned unstable edge: @effect/vitest is unusable with
+        // vp test in any other form, and this repo has proven it works
+        // (apps/desktop/test/effect-bridge.test.ts).
+        "allowedUnstableApis": ["@effect/vitest"],
+        "allowedExperimentalApis": [],
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "error",
+          "unsafeEffectTypeAssertion": "error",
+          "instanceOfSchema": "error",
+          "missingEffectServiceDependency": "error",
+          "leakingRequirements": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "unknownInEffectCatch": "error",
+          "preferSchemaOverJson": "error",
+          "cryptoRandomUUID": "error",
+          // The main process entrypoint and dev scripts are plain imperative
+          // tooling by design: main.ts must stay dependency-free so a logging
+          // failure can never take down the handler that reports it. The
+          // Effect idiom rules therefore only bite inside Effect code, where
+          // the structural rules above do the real work.
+          "nodeBuiltinImport": "off",
+          "globalConsole": "off",
+          "globalDate": "off",
+          "globalTimers": "off",
+          "globalFetch": "off",
+          "globalRandom": "off",
+          // Unstable and experimental modules may break in minor and patch
+          // releases respectively. The only sanctioned edge is @effect/vitest,
+          // so anything else fails the typecheck instead of breaking silently.
+          "unstableApiUsage": "error",
+          "experimentalApiUsage": "error",
+          // Prefer deterministic keys so a service object never silently drops
+          // a field at its layer boundary.
+          "deterministicKeys": "warning"
+        }
+      }
+    ]
   }
 }

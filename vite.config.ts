@@ -238,7 +238,7 @@ export default defineConfig({
        * when a task and a script share a name.
        */
       "typecheck:all": {
-        command: ["vp run -r typecheck", "tsc -p scripts/tsconfig.json"],
+        command: ["vp run -r typecheck", "tsc-rs -p scripts/tsconfig.json"],
         cache: false,
       },
       /** Cognitive/cyclomatic ceiling. */

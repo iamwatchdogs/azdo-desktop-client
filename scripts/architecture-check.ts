@@ -39,7 +39,9 @@ function moduleSpecifiers(file: (typeof sourceFiles)[number]): string[] {
   return [...staticImports, ...staticReExports, ...dynamicImports].filter((spec) => spec !== "");
 }
 
-const EFFECT_SPECIFIER = /^effect(?:\/|$)/;
+// `effect` and every `@effect/*` scoped import. A bare `^effect` pattern
+// matches only the unscoped package and waves all of `@effect/*` through.
+const EFFECT_SPECIFIER = /^(?:@)?effect(?:\/|$)/;
 
 const violations: string[] = [];
 

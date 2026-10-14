@@ -69,6 +69,46 @@ describe("architecture-check effect boundary", () => {
     expect(output).toContain("effect must stay out of shared code");
   });
 
+  // A regex that only matches the bare package lets every scoped @effect/*
+  // import through, and arch-check is the only barrier: effect resolves from
+  // packages/ and apps/renderer via the root symlink regardless of which
+  // workspace declares the dependency.
+  it("rejects scoped @effect imports in the renderer", () => {
+    const output = checkWithFixture(
+      "apps/renderer/src/__arch-probe.ts",
+      'import { HttpServer } from "@effect/platform";\nexport const probe = HttpServer;\n',
+    );
+    expect(output).toContain("apps/renderer/src/__arch-probe.ts");
+    expect(output).toContain("@effect/platform");
+  });
+
+  it("rejects scoped @effect imports in packages/shared, including the sanctioned test dep", () => {
+    for (const specifier of ["@effect/platform", "@effect/vitest"]) {
+      const output = checkWithFixture(
+        "packages/shared/src/__arch-probe.ts",
+        `import * as probe from "${specifier}";\nexport const p = probe;\n`,
+      );
+      expect(output).toContain("packages/shared/src/__arch-probe.ts");
+      expect(output).toContain(specifier);
+    }
+  });
+
+  it("rejects a dynamic @effect import in the preload bridge", () => {
+    const absolute = resolve(root, "apps/desktop/src/preload.ts");
+    const original = readFileSync(absolute, "utf8");
+    writeFileSync(
+      absolute,
+      `${original}\nexport const __archProbe = () => import("@effect/platform");\n`,
+    );
+    try {
+      const output = runCheck().output;
+      expect(output).toContain("apps/desktop/src/preload.ts");
+      expect(output).toContain("@effect/platform");
+    } finally {
+      writeFileSync(absolute, original);
+    }
+  });
+
   // preload.ts is a file, so a path pattern that looks for a preload/ directory
   // skips the one file where a bridged Effect would be destroyed by
   // structuredClone. This appends to the real preload.ts to pin that.
@@ -82,6 +122,14 @@ describe("architecture-check effect boundary", () => {
     const output = checkWithFixture(
       "apps/desktop/src/__arch-probe-main.ts",
       'import { Effect } from "effect";\nexport const probe = Effect.succeed(1);\n',
+    );
+    expect(output).toContain("architecture-check: ok");
+  });
+
+  it("allows scoped @effect imports in the main process", () => {
+    const output = checkWithFixture(
+      "apps/desktop/src/__arch-probe-main.ts",
+      'import * as V from "@effect/vitest";\nexport const probe = V;\n',
     );
     expect(output).toContain("architecture-check: ok");
   });

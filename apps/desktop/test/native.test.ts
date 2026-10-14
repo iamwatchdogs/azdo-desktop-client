@@ -1,5 +1,6 @@
 import { expect, it } from "@effect/vitest";
-import { Effect } from "effect";
+import { Effect, Fiber } from "effect";
+import { TestClock } from "effect/testing";
 
 import { type DbusBus, probeDbus, probeOpenBus } from "../src/native";
 
@@ -93,13 +94,19 @@ it.effect("reports unavailable and closes the bus when the bus errors", () =>
 it.effect("gives up at the deadline and still closes the bus", () =>
   Effect.gen(function* () {
     // Nothing fires, so the probe can only finish by hitting its own deadline.
+    // it.effect runs on the TestClock, so the deadline has to be advanced by
+    // hand: the production deadline is a clock sleep (Effect.timeout), not a
+    // real timer — a real timer inside Effect code is exactly what the
+    // *InEffect rules forbid, and using one here would only test the cheat.
     const { open, wasClosed } = stubBus({});
-    const result = yield* probeOpenBus(open);
+    const fiber = yield* Effect.forkChild(probeOpenBus(open));
+    yield* TestClock.adjust("3 seconds");
+    const result = yield* Fiber.join(fiber);
 
     expect(result.ok).toBe(false);
     expect(result.detail).toBe("no session bus (expected outside a Linux desktop session)");
     expect(wasClosed()).toBe(true);
-  }).pipe(Effect.timeout("10 seconds")),
+  }),
 );
 
 it.effect("reports the reason the bus could not be opened", () =>

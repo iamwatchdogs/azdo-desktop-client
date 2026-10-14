@@ -73,14 +73,16 @@ export function probeOpenBus(
         }),
       );
 
-      return yield* Effect.callback<boolean>((resume) => {
-        const timeout = setTimeout(() => resume(Effect.succeed(false)), 2_000);
-        const settle = (value: boolean) => {
-          clearTimeout(timeout);
-          resume(Effect.succeed(value));
-        };
+      // The deadline comes from Effect.timeout's interrupt below, not a
+      // hand-rolled timer (a setTimeout here would fail globalTimersInEffect).
+      // Interrupting a suspended callback only completes once the callback
+      // resumes, and the abort signal is the only place it learns about the
+      // interrupt, so the deadline path resumes through it too.
+      return yield* Effect.callback<boolean>((resume, signal) => {
+        const settle = (value: boolean) => resume(Effect.succeed(value));
         bus.once("connect", () => settle(true));
         bus.once("error", () => settle(false));
+        signal.addEventListener("abort", () => settle(false));
       }).pipe(
         Effect.timeout("2 seconds"),
         Effect.orElseSucceed(() => false),

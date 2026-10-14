@@ -9,19 +9,21 @@
     "start": "electron .",
     "test": "vp test run --passWithNoTests",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@ado/shared": "workspace:*",
     "@crowecawcaw/xa11y": "catalog:",
     "@napi-rs/keyring": "catalog:",
     "dbus-next": "catalog:",
+    "effect": "catalog:",
     "electron": "catalog:",
     "electron-store": "catalog:",
     "electron-updater": "catalog:",
     "ffi-rs": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "electron-builder": "catalog:",

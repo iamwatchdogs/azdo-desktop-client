@@ -155,6 +155,9 @@ export default defineConfig({
       "complexity/complexity": ["error", { cyclomatic: 20, cognitive: 15, minLines: 5 }],
       "import/max-dependencies": "off",
       "vitest/require-to-throw-message": "off",
+      // @effect/vitest's it.effect takes a generator, so the rule cannot see the
+      // test boundary and reports every expect inside one as standalone.
+      "vitest/no-standalone-expect": "off",
 
       "shadcn/no-restyle": "off",
       "shadcn/require-static-classes": "off",
@@ -235,7 +238,7 @@ export default defineConfig({
        * when a task and a script share a name.
        */
       "typecheck:all": {
-        command: ["vp run -r typecheck", "tsc -p scripts/tsconfig.json"],
+        command: ["vp run -r typecheck", "tsc-rs -p scripts/tsconfig.json"],
         cache: false,
       },
       /** Cognitive/cyclomatic ceiling. */
@@ -246,6 +249,9 @@ export default defineConfig({
       /** ts-morph import-boundary guard. */
       "arch-check": { command: "node scripts/architecture-check.ts", cache: false },
       /** Unused files, dependencies, exports. */
+      // No dependency on the test suite: the boundary tests probe a throwaway
+      // root, so nothing they run ever exists in the tree this scans, and
+      // sequencing against them only re-runs the suite (CI would pay for it).
       knip: {
         command:
           "knip --no-progress --reporter compact --include files,dependencies,unlisted,unresolved,exports",

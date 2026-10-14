@@ -14,9 +14,10 @@
     "start": "vp run --filter @ado/desktop start",
     "test": "vp run -r test",
     "test:e2e": "vp run --filter @ado/desktop test:e2e",
-    "typecheck": "vp run -r typecheck"
+    "typecheck": "vp run -r typecheck && tsc-rs -p scripts/tsconfig.json"
   },
   "devDependencies": {
+    "@effect/language-service": "catalog:",
     "@shadcn/lint": "catalog:",
     "@types/node": "catalog:",
     "knip": "catalog:",
@@ -24,6 +25,7 @@
     "oxlint": "catalog:",
     "oxlint-plugin-complexity": "catalog:",
     "ts-morph": "catalog:",
+    "tsc-rs": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",

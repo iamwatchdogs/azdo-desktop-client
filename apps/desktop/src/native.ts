@@ -1,4 +1,5 @@
 import type { CapabilityResult } from "@ado/shared";
+import { Effect } from "effect";
 
 // Imports are lazy: a missing platform prebuild must not kill the main process.
 function describeError(error: unknown): string {
@@ -36,34 +37,98 @@ export async function checkAccessibility(): Promise<CapabilityResult> {
   }
 }
 
-/** dbus-next — Linux session bus. */
+const NO_SESSION_BUS = "no session bus (expected outside a Linux desktop session)";
+
+/**
+ * The slice of a dbus-next bus this probe drives. Narrow on purpose: the probe
+ * only listens for two events and closes the bus, so a test double needs no
+ * native module and no session bus.
+ */
+export interface DbusBus {
+  once(event: "connect" | "error", handler: () => void): void;
+  disconnect(): void;
+}
+
+/**
+ * Runs the probe against `open`, which yields the bus or the reason it is
+ * unavailable. Taking the opener as a parameter is what lets the connect race,
+ * the deadline and the scope close be driven directly; probeDbus is this with
+ * the real opener wired in.
+ */
+export function probeOpenBus(
+  open: Effect.Effect<DbusBus, string>,
+): Effect.Effect<CapabilityResult> {
+  return Effect.scoped(
+    Effect.gen(function* () {
+      // acquireRelease is what makes disconnect run on every path below.
+      const bus = yield* Effect.acquireRelease(open, (opened) =>
+        Effect.sync(() => {
+          try {
+            opened.disconnect();
+          } catch {
+            // A bus that never connected is already torn down, and its
+            // disconnect throwing must not turn a reported probe into a
+            // defect.
+          }
+        }),
+      );
+
+      // The deadline comes from Effect.timeout's interrupt below, not a
+      // hand-rolled timer (a setTimeout here would fail globalTimersInEffect).
+      // Interrupting a suspended callback only completes once the callback
+      // resumes, and the abort signal is the only place it learns about the
+      // interrupt, so the deadline path resumes through it too.
+      return yield* Effect.callback<boolean>((resume, signal) => {
+        const settle = (value: boolean) => resume(Effect.succeed(value));
+        bus.once("connect", () => settle(true));
+        bus.once("error", () => settle(false));
+        signal.addEventListener("abort", () => settle(false));
+      }).pipe(
+        Effect.timeout("2 seconds"),
+        Effect.orElseSucceed(() => false),
+      );
+    }),
+  ).pipe(
+    Effect.match({
+      onSuccess: (connected) =>
+        connected
+          ? { ok: true, detail: "session bus reachable" }
+          : { ok: false, detail: NO_SESSION_BUS },
+      onFailure: (reason) => ({ ok: false, detail: `${NO_SESSION_BUS}: ${reason}` }),
+    }),
+  );
+}
+
+/**
+ * dbus-next — Linux session bus.
+ *
+ * Expressing the connect race as an Effect rather than a hand-rolled promise
+ * keeps the whole attempt inside one scope: Effect.acquireRelease guarantees
+ * disconnect runs on every path, and dbus-next's import-time and call-time
+ * throws stay in the failure channel instead of escaping as defects. A missing
+ * session bus is an expected state outside a Linux desktop session, so this
+ * function reports it as a result rather than throwing, and keeps the reason:
+ * a host with a stale DBUS_SESSION_BUS_ADDRESS is still a host an operator
+ * needs told about.
+ */
 export async function probeDbus(): Promise<CapabilityResult> {
-  try {
-    const { sessionBus } = await import("dbus-next");
-    // sessionBus() starts connecting now; the bus emits connect/error.
-    const bus = sessionBus();
-    const connected = await new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => resolve(false), 2_000);
-      bus.once("connect", () => {
-        clearTimeout(timeout);
-        resolve(true);
-      });
-      bus.once("error", () => {
-        clearTimeout(timeout);
-        resolve(false);
-      });
-    });
-    try {
-      bus.disconnect();
-    } catch {
-      // A failed connection is already torn down.
-    }
-    return connected
-      ? { ok: true, detail: "session bus reachable" }
-      : { ok: false, detail: "no session bus (expected outside a Linux desktop session)" };
-  } catch (error) {
-    return { ok: false, detail: describeError(error) };
-  }
+  return Effect.runPromise(
+    probeOpenBus(
+      Effect.gen(function* () {
+        // dbus-next throws while its module initialises on a host with no dbus
+        // address, so the import itself has to be in the failure channel.
+        const { sessionBus } = yield* Effect.tryPromise({
+          try: () => import("dbus-next"),
+          catch: describeError,
+        });
+        // sessionBus() throws synchronously where there is no session bus.
+        return yield* Effect.try({
+          try: () => sessionBus() as unknown as DbusBus,
+          catch: describeError,
+        });
+      }),
+    ),
+  );
 }
 
 /** ffi-rs — resolve getpid() through libSystem / libc / kernel32. */

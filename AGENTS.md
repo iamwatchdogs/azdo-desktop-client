@@ -44,7 +44,7 @@ Here are the commands you need for your everyday tasks:
 | Build                                                 | `pnpm build`                               |
 | Start the built app                                   | `pnpm start`                               |
 | Format + lint + type-aware lint                       | `pnpm check`                               |
-| Typecheck every workspace                             | `pnpm typecheck`                           |
+| Typecheck every workspace + scripts                   | `pnpm typecheck`                           |
 | Complexity gate                                       | `pnpm check:complexity` (cognitive max 15) |
 | Tests, all workspaces                                 | `pnpm test`                                |
 | E2E smoke test                                        | `pnpm test:e2e`                            |
@@ -287,6 +287,20 @@ suggestions:
   staged lines by `scripts/hooks/policy.ts`. Intentional output uses
   `console.warn` / `error` / `info`, or a single-line opt-out via
   `// debug-statements: allow`.
+- **Effect 4 lives in the main process only** (`effect`, t3code-style). It never
+  crosses the bridge (`arch-check` rejects bare `effect` and every `@effect/*`
+  specifier under `packages/`, `apps/renderer/` and `preload/`). Every
+  `ipcMain` handler still ends in one `runPromise` that returns a plain
+  serializable value and every bridge return type stays `structuredClone`-safe
+  (asserted in `packages/shared/test/ipc.test.ts`). When writing Effect, read
+  the version that is pinned, not the web: `node_modules/effect/AGENTS.md` and
+  `node_modules/effect/ai-docs/` — never `effect.website`, whose nav still
+  lists legacy pages. `tsconfig.base.json` enforces the Effect rules via
+  `tsc-rs` (see "Strict TypeScript" below), so an unstable or experimental
+  module import fails `pnpm typecheck`. The `*InEffect` rules keep the
+  no-globals discipline inside Effect code (no `console`/`Date`/timer/fetch/
+  random/`crypto.randomUUID`), which is why the plain globals can be `off`
+  for the imperative shell.
 - **Strict TypeScript, maximum settings** (`tsconfig.base.json`). Use
   `interface`, not `type`, for object shapes; `import type` / verbatim syntax is
   enforced; bracket-notation access for index signatures

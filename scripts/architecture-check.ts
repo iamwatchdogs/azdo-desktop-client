@@ -7,6 +7,8 @@ import { relative, resolve } from "node:path";
 
 import { Project, SyntaxKind } from "ts-morph";
 
+import { toPosixPath } from "./to-posix-path.ts";
+
 const root = process.cwd();
 const tsconfigPath = resolve(root, "tsconfig.json");
 
@@ -39,17 +41,25 @@ function moduleSpecifiers(file: (typeof sourceFiles)[number]): string[] {
   return [...staticImports, ...staticReExports, ...dynamicImports].filter((spec) => spec !== "");
 }
 
+// `effect` and every `@effect/*` scoped import. A bare `^effect` pattern
+// matches only the unscoped package and waves all of `@effect/*` through.
+const EFFECT_SPECIFIER = /^(?:@)?effect(?:\/|$)/;
+
 const violations: string[] = [];
 
 for (const file of sourceFiles) {
-  const relativePath = relative(root, file.getFilePath());
+  // `relative` leans on the platform separator, and every check below is
+  // written for `/`: on Windows the unnormalized form never matches a prefix,
+  // so each boundary rule would silently pass.
+  const relativePath = toPosixPath(relative(root, file.getFilePath()));
   if (relativePath.includes("routeTree.gen")) continue;
 
   const inPackages = relativePath.startsWith("packages/");
   const inRenderer = relativePath.includes("/renderer/");
-  const inMainProcess =
-    relativePath.startsWith("apps/desktop/src/main") ||
-    relativePath.startsWith("apps/desktop/src/preload");
+  // preload.ts is a file, not a directory: match it the way the React rule
+  // below does rather than by a path pattern, so the two cannot drift apart.
+  const inPreload = relativePath.startsWith("apps/desktop/src/preload");
+  const inMainProcess = relativePath.startsWith("apps/desktop/src/main") || inPreload;
 
   for (const specifier of moduleSpecifiers(file)) {
     if (inPackages && (specifier.startsWith("@ado/desktop") || specifier.includes("/apps/"))) {
@@ -66,6 +76,16 @@ for (const file of sourceFiles) {
         specifier === "@vitejs/plugin-react")
     ) {
       violations.push(`${relativePath}: process code must not import react (${specifier})`);
+    }
+    // Effect values do not survive contextBridge: structured clone drops the
+    // prototype getters and symbol keys they keep state behind, so a tagged
+    // error crosses as a bare {} and an Effect throws DataCloneError. Effect
+    // therefore lives only in the main process, and the boundary is a rule
+    // rather than a convention so an agent cannot erode it.
+    if ((inPackages || inRenderer || inPreload) && EFFECT_SPECIFIER.test(specifier)) {
+      violations.push(
+        `${relativePath}: effect must stay out of shared code and the renderer (${specifier})`,
+      );
     }
   }
 }

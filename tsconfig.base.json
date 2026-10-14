@@ -26,6 +26,85 @@
     "forceConsistentCasingInFileNames": true,
     "useDefineForClassFields": true,
 
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    /**
+     * Effect language-service diagnostics. tsc-rs has the 377xxx codes built
+     * in, so this block is a real typecheck gate here, not editor UX.
+     *
+     * Two tiers, split by where the rule can fire:
+     *
+     * - The structural rules (first block) are the load-bearing ones and are
+     *   `error` everywhere: leaked requirements, unsatisfied dependencies,
+     *   schema assertions, JSON where a Schema is possible. They bite on
+     *   ordinary code too, which is the point — Effect used sloppily in the
+     *   main process is still sloppy.
+     * - The global-I/O rules exist twice: a plain variant that fires on every
+     *   file and an `InEffect` variant that fires only inside Effect code.
+     *   The plain variants are `off` because the process shell — main.ts, the
+     *   probe wrappers in native.ts — is plain imperative tooling that imports
+     *   node: modules, logs with `console.warn` and reads `process.env` outside
+     *   any Effect. The `InEffect` variants are `error`, so inside Effect code
+     *   the same discipline is enforced and the `off` is a scope decision, not
+     *   a hole. (Note the plain `cryptoRandomUuid` cannot fire inside Effect
+     *   code at all — the engine routes it to the `InEffect` key — so leaving
+     *   that key unset is what makes the rule dead config.)
+     * - The stability rules default-deny the unstable and experimental
+     *   modules Effect may break in minor and patch releases. Upstream
+     *   (t3code PR #16704) turns both off: it has ~6,000 deliberate
+     *   unstable-module uses and hits false TS2790 on `delete` of
+     *   index-signature properties (Effect-TS/tsgo#820). Neither applies here
+     *   — the Effect surface is one core dep plus the one allowlisted test dep
+     *   below — so this repo keeps the stricter setting deliberately. The
+     *   allowlists and the severities are pinned by
+     *   scripts/effect-diagnostics.test.ts.
+     */
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["effect"],
+        // The one sanctioned unstable edge: @effect/vitest is unusable with
+        // vp test in any other form, and this repo has proven it works
+        // (apps/desktop/test/effect-bridge.test.ts).
+        "allowedUnstableApis": ["@effect/vitest"],
+        "allowedExperimentalApis": [],
+        "diagnosticSeverity": {
+          "anyUnknownInErrorContext": "error",
+          "unsafeEffectTypeAssertion": "error",
+          "instanceOfSchema": "error",
+          "missingEffectServiceDependency": "error",
+          "leakingRequirements": "error",
+          "globalErrorInEffectCatch": "error",
+          "globalErrorInEffectFailure": "error",
+          "unknownInEffectCatch": "error",
+          "preferSchemaOverJson": "error",
+          "cryptoRandomUUID": "error",
+          // The same discipline, enforced where Effect code actually runs.
+          // `nodeBuiltinImport` has no InEffect counterpart and stays off for
+          // the same reason as its plain variant.
+          "cryptoRandomUUIDInEffect": "error",
+          "globalConsoleInEffect": "error",
+          "globalDateInEffect": "error",
+          "globalFetchInEffect": "error",
+          "globalRandomInEffect": "error",
+          "globalTimersInEffect": "error",
+          // Off for the process shell, not for Effect code (see above).
+          "nodeBuiltinImport": "off",
+          "globalConsole": "off",
+          "globalDate": "off",
+          "globalTimers": "off",
+          "globalFetch": "off",
+          "globalRandom": "off",
+          // Unstable and experimental modules may break in minor and patch
+          // releases respectively. The only sanctioned edge is @effect/vitest,
+          // so anything else fails the typecheck instead of breaking silently.
+          "unstableApiUsage": "error",
+          "experimentalApiUsage": "error",
+          // Prefer deterministic keys so a service object never silently drops
+          // a field at its layer boundary.
+          "deterministicKeys": "warning"
+        }
+      }
+    ]
   }
 }

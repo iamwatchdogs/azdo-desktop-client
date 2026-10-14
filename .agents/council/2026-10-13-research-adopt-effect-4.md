@@ -151,10 +151,23 @@ The exact shape all three judges independently converged on:
    `allowedExperimentalApis: []`, `floatingEffect: "error"`. This is the load-bearing
    condition: it converts MIGRATION.md's 20-module unstable list from a discipline problem
    into a default-deny build failure. **Adoption is void without it.**
+   > **Superseded 2026-10-14** by `feat/adopt-effect-4` (PR #1): the gate shipped without
+   > `@effect/tsgo` — tsc-rs 0.6.0 carries the TS377xxx diagnostics natively, with
+   > `unstableApiUsage`/`experimentalApiUsage` at `error` in `tsconfig.base.json` and the six
+   > `*InEffect` rules default-deny global I/O inside Effect code. The default-deny condition
+   > this item called load-bearing is met by the pinned compiler's own plugin block; the
+   > reasoning above is kept as the historical record.
 6. **Do not adopt `@effect/vitest`** — #6129 is closed _not planned_ and the only surviving
    workaround requires a literal `vitest: 5.0.1` override colliding with the catalog's
    `5.0.3`, violating the repo's catalog-only versioning rule. Write plain Vitest 5 specs
    wrapping `Effect.runSync`/`runPromise`.
+   > **Superseded 2026-10-14** by `feat/adopt-effect-4` (PR #1): the veto rested on the
+   > assumption that compatibility needs a version override. It does not — vite-plus 1.1.0
+   > re-exports vitest, so `@effect/vitest` runs on the catalog's `5.0.3`, and the module
+   > identity that assumption hinged on is asserted in
+   > `apps/desktop/test/effect-bridge.test.ts`, so a future re-export change turns a test
+   > red instead of silently running zero suites. The reasoning above is kept as the
+   > historical record.
 7. **Exclude `@effect/platform-node` and `effect/http`'s Node client.** `platform-node`
    imports `node:stream/http/fs/https/worker_threads` + `undici`, unreachable from the
    sandboxed preload, and its lazy `import("./Undici.js")` would be **inlined** into

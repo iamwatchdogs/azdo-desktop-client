@@ -7,6 +7,8 @@ import { relative, resolve } from "node:path";
 
 import { Project, SyntaxKind } from "ts-morph";
 
+import { toPosixPath } from "./to-posix-path.ts";
+
 const root = process.cwd();
 const tsconfigPath = resolve(root, "tsconfig.json");
 
@@ -46,7 +48,10 @@ const EFFECT_SPECIFIER = /^(?:@)?effect(?:\/|$)/;
 const violations: string[] = [];
 
 for (const file of sourceFiles) {
-  const relativePath = relative(root, file.getFilePath());
+  // `relative` leans on the platform separator, and every check below is
+  // written for `/`: on Windows the unnormalized form never matches a prefix,
+  // so each boundary rule would silently pass.
+  const relativePath = toPosixPath(relative(root, file.getFilePath()));
   if (relativePath.includes("routeTree.gen")) continue;
 
   const inPackages = relativePath.startsWith("packages/");

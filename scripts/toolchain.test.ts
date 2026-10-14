@@ -66,15 +66,21 @@ describe("typecheck toolchain", () => {
     }
   });
 
-  it("runs knip after the suite, not beside it", () => {
+  it("orders the working-tree scanners after the suite that writes probe fixtures", () => {
     // The architecture tests write probe fixtures into the source trees and
-    // delete them in a finally block. knip's file scan scores a fixture that
-    // exists mid-run as an unused file, so the gate orders knip after the
-    // tests: a concurrent scan is a transient red with nothing to do with
-    // the repo, seen once in the push gate before this ordering.
+    // delete them in a finally block. knip and architecture-check both scan
+    // the working tree, so either one running beside the tests can fail on a
+    // fixture that existed for a millisecond — a transient red that has
+    // nothing to do with the repo, observed twice in the push gate.
     const viteConfig = readFileSync(resolve(root, "vite.config.ts"), "utf8");
-    const knipTask = /knip: \{[\s\S]*?\n {6}\}/.exec(viteConfig)?.[0];
-    expect(knipTask).toBeDefined();
-    expect(knipTask).toContain('dependsOn: ["tests:all"]');
+    for (const task of ["arch-check", "knip"]) {
+      // Task keys are quoted only when they carry a hyphen (Vite Task), so
+      // accept both spellings.
+      const block = new RegExp(`(?:"${task}"|${task}): \\{[\\s\\S]*?\\n {6}\\}`).exec(
+        viteConfig,
+      )?.[0];
+      expect(block, `${task} task block`).toBeDefined();
+      expect(block).toContain('dependsOn: ["tests:all"]');
+    }
   });
 });

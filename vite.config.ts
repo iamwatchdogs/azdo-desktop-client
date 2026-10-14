@@ -247,7 +247,16 @@ export default defineConfig({
         cache: false,
       },
       /** ts-morph import-boundary guard. */
-      "arch-check": { command: "node scripts/architecture-check.ts", cache: false },
+      "arch-check": {
+        command: "node scripts/architecture-check.ts",
+        // After the tests, not beside them: the boundary tests write probe
+        // fixtures into the very source trees they assert against and remove
+        // them in a finally block, so a guard that scans the working tree
+        // while a test holds one reports the fixture as a violation. Same
+        // race as knip below.
+        dependsOn: ["tests:all"],
+        cache: false,
+      },
       /** Unused files, dependencies, exports. */
       knip: {
         command:

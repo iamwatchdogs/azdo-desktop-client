@@ -115,6 +115,42 @@ Evidence (red-then-green per change):
 Notable fallout: `Effect.fork` is `Effect.forkChild` in Effect 4, and
 `TestClock` is imported from `effect/testing`, not `effect`.
 
+## CI-green batch (2026-10-14, after PR #1 opened)
+
+The first PR run was red. Root causes, in fix order:
+
+1. **The boundary suite wrote fixtures into the live source tree**
+   (`scripts/architecture-check.test.ts`) — one decision, four failures:
+   each test spawns a whole-repo ts-morph scan (~3.5-7s on CI runners) and
+   blew the 5s vitest default (`Unit tests` failed on all three OSes); a
+   timed-out test then leaked `packages/shared/src/__arch-probe.ts` and the
+   parallel `vp check` step linted it (TS2307 + `no-unsafe-*`); CodeQL raised
+   `js/file-system-race` on both `writeFileSync` calls; CodeRabbit flagged the
+   same hole as a nitpick (concurrent vitest files and tools can read the
+   probes mid-run). Fix: build a throwaway root — a temp directory with the
+   same relative layout and a minimal tsconfig — and run the CLI against it.
+   Same code paths through the same rules, no writes into the tree, an order
+   of magnitude faster.
+2. **Windows path separators.** `relative()` returns `\`-separated paths on
+   Windows, so `inPackages`/`inRenderer`/`inPreload` never matched there and
+   every boundary rule silently passed with exit 0; `pnpm ls --parseable`
+   output has the same shape and the effect store-path regex returned `[]`
+   against the expected `["4.0.4"]`. Fix: one `toPosixPath` primitive used by
+   both sites, with a unit test that feeds Windows-shaped input on every
+   platform so the evidence is not OS-gated.
+3. **Scanner ordering the producer fix made dead.** `9f0159b` and `25feda7`
+   ordered `knip`/`arch-check` after `tests:all` to dodge the probe race. With
+   the race gone at its producer the `dependsOn` is pure cost — CI re-runs the
+   root suite inside the arch-check step. Both reverted, pinned by an inverted
+   assertion in `scripts/toolchain.test.ts`.
+4. **Docs artifacts.** Research doc items 5 (`@effect/tsgo`) and 6
+   (`@effect/vitest`) are superseded by this branch — marked as such with the
+   reasoning preserved. Judge verdicts: two malformed `recommendation` JSON
+   properties and one table row whose regex pipe split the cell.
+
+Deviations: none. The unstable/experimental rules stay at `error` as the
+first batch decided.
+
 ## Out of scope
 
 - `--fast` / `GOPORT_FAST` (rejected upstream with measurements; nothing set).

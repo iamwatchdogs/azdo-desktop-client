@@ -44,7 +44,7 @@ Here are the commands you need for your everyday tasks:
 | Build                                                 | `pnpm build`                               |
 | Start the built app                                   | `pnpm start`                               |
 | Format + lint + type-aware lint                       | `pnpm check`                               |
-| Typecheck every workspace                             | `pnpm typecheck`                           |
+| Typecheck every workspace + scripts                   | `pnpm typecheck`                           |
 | Complexity gate                                       | `pnpm check:complexity` (cognitive max 15) |
 | Tests, all workspaces                                 | `pnpm test`                                |
 | E2E smoke test                                        | `pnpm test:e2e`                            |

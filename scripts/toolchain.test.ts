@@ -36,10 +36,14 @@ describe("typecheck toolchain", () => {
     expect(typecheckScript(workspace)).toMatch(/\btsc-rs\b/);
   });
 
-  it("fans the root typecheck out over the workspaces rather than a compiler", () => {
-    // The root script is a task fan-out, not an invocation, so it is asserted
-    // on that shape instead of on the compiler it happens not to name.
-    expect(typecheckScript("package.json")).toBe("vp run -r typecheck");
+  it("fans the root typecheck out over the workspaces and the scripts", () => {
+    // The root script names both halves explicitly: the workspace fan-out and
+    // the scripts tree (the guard tests in this directory). Routing through
+    // the typecheck:all task instead makes `vp run -r typecheck` resolve this
+    // same script again, and Vite Task refuses the loop.
+    expect(typecheckScript("package.json")).toBe(
+      "vp run -r typecheck && tsc-rs -p scripts/tsconfig.json",
+    );
   });
 
   it("checks the scripts workspace with tsc-rs too", () => {

@@ -44,7 +44,7 @@ a single run.
 | `pnpm build`            | builds `@ado/renderer` (dependsOn), packs main/preload, copies the renderer bundle into `dist/renderer`                                |
 | `pnpm start`            | launches Electron against the built bundles                                                                                            |
 | `pnpm check`            | `vp check`: format + lint + type-aware lint in one pass                                                                                |
-| `pnpm typecheck`        | `tsc --noEmit` per workspace (TypeScript 7 native)                                                                                     |
+| `pnpm typecheck`        | `tsc-rs --noEmit` per workspace, plus the scripts tree (TypeScript 7 native + Effect diagnostics)                                      |
 | `pnpm check:complexity` | cognitive complexity gate (max 15)                                                                                                     |
 | `pnpm test`             | Vitest in every workspace                                                                                                              |
 | `pnpm test:e2e`         | Playwright Electron smoke test on the built app                                                                                        |

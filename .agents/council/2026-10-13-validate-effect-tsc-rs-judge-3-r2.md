@@ -1,16 +1,21 @@
 # Judge 3 — Round 2 (stress-testing the unanimous WARN)
 
+> Amended 2026-10-14 (feat/adopt-effect-4, PR #1): the divergent-rule denominators are **14**,
+> not 13, and the `globalTimers` claim is narrowed to native source — its one live referent is
+> the dbus test double this report itself cites, per the reviewer's finding that the old
+> wording contradicted it. The measured costs (5 diagnostics, 3 files) are unchanged.
+
 ```json
 {
   "judge": "judge-3",
   "verdict": "WARN",
   "confidence": "HIGH",
   "revised_from": "WARN",
-  "key_insight": "The consensus holds, and the debate made it more precise rather than softer: restoring upstream parity is a priced, bounded change — I applied the full upstream rule map to this repo's own source and test tree and it costs exactly 5 diagnostics in 3 files, with 9 of the 13 divergent rules costing nothing at all. But the debate also exposed that both other judges mis-measured the cost of their own headline fix: `globalTimersInEffect: \"error\"` (which both recommend adding) breaks `apps/desktop/src/native.ts:77` with TS377073, and Judge 1's claim that the base `globalTimers` `off` value is what makes native.ts:77 legal is empirically false — that rule does not fire on `Effect.callback` bodies at all. The verdict stays WARN not because the rule gap is large but because Judge 2's README:47 finding is categorically worse than anything I found in R1: the repo's own command table names `tsc` for `pnpm typecheck`, handing an agent the exact silent substitution the entire guard suite exists to prevent.",
+  "key_insight": "The consensus holds, and the debate made it more precise rather than softer: restoring upstream parity is a priced, bounded change — I applied the full upstream rule map to this repo's own source and test tree and it costs exactly 5 diagnostics in 3 files, with 9 of the 14 divergent rules costing nothing at all. But the debate also exposed that both other judges mis-measured the cost of their own headline fix: `globalTimersInEffect: \"error\"` (which both recommend adding) breaks `apps/desktop/src/native.ts:77` with TS377073, and Judge 1's claim that the base `globalTimers` `off` value is what makes native.ts:77 legal is empirically false — that rule does not fire on `Effect.callback` bodies at all. The verdict stays WARN not because the rule gap is large but because Judge 2's README:47 finding is categorically worse than anything I found in R1: the repo's own command table names `tsc` for `pnpm typecheck`, handing an agent the exact silent substitution the entire guard suite exists to prevent.",
   "findings": [
     {
       "severity": "significant",
-      "description": "Judge 1's claim that the base `off` values are 'justified by real usage - apps/desktop/src/native.ts:77 legitimately calls setTimeout inside an Effect.callback' is empirically false, and the error is load-bearing for the fix design. I ran the verbatim `Effect.callback` shape from native.ts:76-83 with globalTimers/globalConsole/globalDate/globalRandom/nodeBuiltinImport all at \"error\": only console.warn fired (TS377064). ZERO timer diagnostics. The base rule globalTimers does not cover `Effect.callback` bodies. What covers native.ts:77 is `globalTimersInEffect`, which fired TS377073 on the identical file. So (a) `globalTimers: \"off\"` protects no source code in this repo, and (b) adding `globalTimersInEffect: \"error\"` - the fix BOTH Judge 1 and Judge 2 recommend - breaks the only Effect file the repo has.",
+      "description": "Judge 1's claim that the base `off` values are 'justified by real usage - apps/desktop/src/native.ts:77 legitimately calls setTimeout inside an Effect.callback' is empirically false, and the error is load-bearing for the fix design. I ran the verbatim `Effect.callback` shape from native.ts:76-83 with globalTimers/globalConsole/globalDate/globalRandom/nodeBuiltinImport all at \"error\": only console.warn fired (TS377064). ZERO timer diagnostics. The base rule globalTimers does not cover `Effect.callback` bodies. What covers native.ts:77 is `globalTimersInEffect`, which fired TS377073 on the identical file. So (a) `globalTimers: \"off\"` protects no _native_ source code in this repo — its one live\n      referent is the dbus test double at `apps/desktop/test/native.test.ts:20` (TS377072), not native.ts:77\n      — and (b) adding `globalTimersInEffect: \"error\"` - the fix BOTH Judge 1 and Judge 2 recommend - breaks the only Effect file the repo has.",
       "why": "This is not a quibble about a citation. Both judges' recommended remediation ('add the six *InEffect global keys as error while deliberately leaving their base keys off') is a breaking change to working main-process code, and neither stated the cost. A consumer of either report implements that change and hits a red typecheck on native.ts, with no warning that it was coming. It also means the in-file comment at tsconfig.base.json:58-62 - which both judges accepted as an adequate rationale - is wrong about which rule covers which code.",
       "fix": "State the cost with the change: restoring the *InEffect keys to \"error\" requires either rewriting native.ts:77's `setTimeout` to `Effect.sleep`/`Schedule` or a scoped `@effect-diagnostics` suppression with a comment saying why the timer must stay real. Also correct the citation: `globalTimers: \"off\"` is load-bearing via `apps/desktop/test/native.test.ts:20` (a plain `setTimeout(handler, 0)` in a test double), NOT via native.ts:77.",
       "ref": "apps/desktop/src/native.ts:77; scripts/architecture-check.ts:1"
@@ -24,7 +29,7 @@
     },
     {
       "severity": "moderate",
-      "description": "Full upstream parity is a priced, bounded change, and the price is 5 lines in 3 files. I applied upstream's complete error-severity rule map (all six base globals + nodeBuiltinImport at error, all seven *InEffect keys at error, schemaSyncInEffect and cryptoRandomUuidInEffect at error, deterministicKeys at error) to the repo's own source AND test tree. Exactly five diagnostics result: main.ts:1 (TS377057 node:path), main.ts:114 and main.ts:117 (TS377064 console.warn), native.ts:77 (TS377073 setTimeout in Effect.callback), test/native.test.ts:20 (TS377072 setTimeout in a test double). Nine of the thirteen divergent rules cost nothing whatsoever, because the constructs they police have zero occurrences in the tree: `Date.now`, `fetch(`, `Math.random`, `crypto.randomUuid` all appear nowhere in apps/, packages/ or scripts/ outside node_modules.",
+      "description": "Full upstream parity is a priced, bounded change, and the price is 5 lines in 3 files. I applied upstream's complete error-severity rule map (all six base globals + nodeBuiltinImport at error, all seven *InEffect keys at error, schemaSyncInEffect and cryptoRandomUuidInEffect at error, deterministicKeys at error) to the repo's own source AND test tree. Exactly five diagnostics result: main.ts:1 (TS377057 node:path), main.ts:114 and main.ts:117 (TS377064 console.warn), native.ts:77 (TS377073 setTimeout in Effect.callback), test/native.test.ts:20 (TS377072 setTimeout in a test double). Nine of the fourteen divergent rules cost nothing whatsoever, because the constructs they police have zero occurrences in the tree: `Date.now`, `fetch(`, `Math.random`, `crypto.randomUuid` all appear nowhere in apps/, packages/ or scripts/ outside node_modules.",
       "why": "Both my R1 finding and both other judges' findings framed this as an open-ended '19-key subset of upstream's 30' weakening, which reads like a hole. Priced, it is a rounding error - and the fact that half the divergent rules are free means the council's own recommendation ('restore the seven *InEffect rules') is cheaper than its framing suggested and more expensive than Judge 1 and Judge 2 stated, simultaneously. A reader needs both halves of that number to act.",
       "fix": "Record the cost matrix next to the rule map so the decision is made with the price visible. If the repo wants parity, expect to touch main.ts (node:path, two console.warn), native.ts (one setTimeout) and test/native.test.ts (one setTimeout) - four suppression comments or four idiomatic rewrites, not a rewrite of the module.",
       "ref": "tsconfig.base.json:63-76"
@@ -111,7 +116,7 @@ six distinct TS377xxx diagnostics reproducing under the shipped `tsconfig.base.j
 `preferSchemaOverJson`, 030 `anyUnknownInErrorContext`, 067 `globalDateInEffect`, 078
 `cryptoRandomUuid`, 001 `floatingEffect`, 136 `unstableApiUsage`), plain `tsc` 7.0.2 emitting
 none of them for an identical file, and a nine-mutation sandbox sweep in which seven mutations
-turned a gate red. Against that: 13 of upstream's 24 error-severity rules absent or weakened, the
+turned a gate red. Against that: 14 of upstream's 24 error-severity rules absent or weakened, the
 in-file comment justifying six of them factually wrong in two ways, 13 of 19 configured rule keys
 unguarded by any test, AGENTS.md overstating `runPromise` and the structuredClone claim, and the
 Effect boundary resting on one regex with no typecheck backstop.
@@ -144,7 +149,7 @@ diagnostics in 3 files**:
 | `native.ts:77`           | TS377073   | `globalTimersInEffect` (`setTimeout` in `Effect.callback`) |
 | `test/native.test.ts:20` | TS377072   | `globalTimers` (`setTimeout` in a test double)             |
 
-Nine of the thirteen divergent rules cost nothing, because the constructs they police have **zero
+Nine of the fourteen divergent rules cost nothing, because the constructs they police have **zero
 occurrences** anywhere in `apps/`, `packages/` or `scripts/` outside `node_modules`: `Date.now`,
 `fetch(`, `Math.random`, `crypto.randomUuid`. So "a 19-key subset of upstream's 30" is really "four
 lines of real code and nine free keys".
@@ -237,7 +242,7 @@ is the only place in the review where the configuration can erode silently as th
 asymmetry in R1 as a sub-point. Judge 1's formulation and the zero-occurrence count sharpen it, and
 adopting it prompted the parity cost matrix, which found the pattern two more times. The finding is
 now "three rules guard nothing, three guard code the comment does not name, seven are absent" — far
-more actionable than "13 of 24 missing".
+more actionable than "14 of 24 missing".
 
 **Judge 1, two independent rule engines** — this modifies my E2 assessment. I closed the
 plugin-activation question by showing the plugin resolves through all five configs. Judge 1's

@@ -1,15 +1,20 @@
 # Judge 3 — Completeness & Self-Consistency
 
+> Amended 2026-10-14 (feat/adopt-effect-4, PR #1): the divergent-rule inventory is **14**, not
+> 13 — six `off` + seven omitted + `deterministicKeys` at `warning`. The headline, the rule-map
+> finding and the verdict lines are corrected in place, and the arithmetic reconciliation keeps
+> the stricter pair outside the ten upstream-identical rules. The measurement is unchanged.
+
 ```json
 {
   "judge": "judge-3",
   "verdict": "WARN",
   "confidence": "HIGH",
-  "key_insight": "The setup is genuinely configured and genuinely enforced — I reproduced TS377026/TS377067/TS377078/TS377136/TS377001 firing and 7 of 9 mutations going red — but 13 of upstream's 24 error-severity rules are absent or weakened, every one of them demonstrably bites this repo's own code shapes, and the in-file comment justifying the six downgraded ones is factually wrong in two independent ways. Meanwhile 13 of the 19 configured rule keys (including preferSchemaOverJson, the highest-yield rule) are unguarded by any test, and AGENTS.md overstates the implementation in two places.",
+  "key_insight": "The setup is genuinely configured and genuinely enforced — I reproduced TS377026/TS377067/TS377078/TS377136/TS377001 firing and 7 of 9 mutations going red — but 14 of upstream's 24 error-severity rules are absent or weakened, every one of them demonstrably bites this repo's own code shapes, and the in-file comment justifying the six downgraded ones is factually wrong in two independent ways. Meanwhile 13 of the 19 configured rule keys (including preferSchemaOverJson, the highest-yield rule) are unguarded by any test, and AGENTS.md overstates the implementation in two places.",
   "findings": [
     {
       "severity": "moderate",
-      "description": "13 of upstream t3code's 24 error-severity rules are absent or weakened. Six are downgraded to off (nodeBuiltinImport, globalConsole, globalDate, globalTimers, globalFetch, globalRandom); seven upstream-error keys are omitted entirely (schemaSyncInEffect, cryptoRandomUUIDInEffect, globalDateInEffect, globalConsoleInEffect, globalRandomInEffect, globalTimersInEffect, globalFetchInEffect); deterministicKeys is downgraded error->warning. I verified that every one of these rules DOES fire on this repo's code shapes: nodeBuiltinImport (TS377057 on `import ... from \"node:fs\"`), globalConsole (TS377064 on plain `console.log`), globalDate (TS377066 on plain `Date.now()`), cryptoRandomUUID (TS377078 on plain `crypto.randomUUID()`), globalDateInEffect (TS377067 on `Effect.sync(() => Date.now())`). So the omissions are not inert rules being tidied away — they are live gates being dropped.",
+      "description": "14 of upstream t3code's 24 error-severity rules are absent or weakened. Six are downgraded to off (nodeBuiltinImport, globalConsole, globalDate, globalTimers, globalFetch, globalRandom); seven upstream-error keys are omitted entirely (schemaSyncInEffect, cryptoRandomUUIDInEffect, globalDateInEffect, globalConsoleInEffect, globalRandomInEffect, globalTimersInEffect, globalFetchInEffect); deterministicKeys is downgraded error->warning. I verified that every one of these rules DOES fire on this repo's code shapes: nodeBuiltinImport (TS377057 on `import ... from \"node:fs\"`), globalConsole (TS377064 on plain `console.log`), globalDate (TS377066 on plain `Date.now()`), cryptoRandomUUID (TS377078 on plain `crypto.randomUUID()`), globalDateInEffect (TS377067 on `Effect.sync(() => Date.now())`). So the omissions are not inert rules being tidied away — they are live gates being dropped.",
       "fix": "Either restore upstream parity (set the six global rules to \"error\" and add the seven *InEffect keys as \"error\"), or keep the exemptions but (a) write a comment that names each one and its true reason and (b) add test assertions pinning the chosen severities so the exemptions cannot silently widen. My recommendation: restore the seven *InEffect rules, because tsconfig.base.json:60-62 itself concedes that 'the Effect idiom rules ... only bite inside Effect code' — i.e. those seven are precisely the surface this repo is now writing (native.ts's probeOpenBus and the planned ADO REST client).",
       "why": "These are the rules that encode the council research doc's load-bearing claim (line 189: '20 ecosystem modules are @stability unstable; mitigated only by ... allowedUnstableApis: []'). A repo that default-denies unstable modules but permits ambient `Date.now()`, `console.log`, `setTimeout` and `crypto.randomUUID()` inside its Effects has closed the door it cares about and left the side door open. Worse, the asymmetry is inverted: the rules that would constrain plain imperative main-process code are switched off, and the rules that would constrain Effect code are omitted — the weakening is concentrated exactly where the Effect code lives.",
       "ref": "tsconfig.base.json:47-77"
@@ -128,8 +133,12 @@ Upstream t3code's `diagnosticSeverity` map has **30 keys: 24 at `error`, 6 at `o
 | Present but weakened                | 7     | nodeBuiltinImport, globalConsole, globalDate, globalTimers, globalFetch, globalRandom (all `error`→`off`); deterministicKeys (`error`→`warning`)                                                                                               |
 | Omitted entirely                    | 7     | **schemaSyncInEffect, cryptoRandomUUIDInEffect, globalDateInEffect, globalConsoleInEffect, globalRandomInEffect, globalTimersInEffect, globalFetchInEffect**                                                                                   |
 
-10 + 2 + 7 + 7 = 26, of which 24 correspond to upstream's 24 error keys (2 of the 10 are the
-stricter pair, so 10 error-equivalents include 2 that were `off` upstream). E3's arithmetic holds.
+10 + 2 + 7 + 7 = 26, of which 24 correspond to upstream's 24 error keys: the 10 that are
+identical plus the 14 that diverge (7 weakened + 7 omitted). The stricter pair is counted
+separately from the 10, not inside it — upstream leaves both `off`, so folding them in would
+overstate parity, and dropping them would hide that this repo is the stricter of the two.
+E3's arithmetic holds, and the divergent total is 14, not 13: six `off` + seven omitted + one
+`warning` downgrade counts the `warning` rule, which the headline originally missed.
 
 ### The seven omitted rules — justified or unexamined?
 
@@ -181,7 +190,7 @@ So `cryptoRandomUUID: "error"` guards only the non-Effect call site — the Effe
 covered solely by `cryptoRandomUUIDInEffect`, which is omitted. The configured rule is real but
 aimed at the wrong half of the problem.
 
-**Verdict on 2a:** 13 of upstream's 24 error rules are absent or weakened; all 13 demonstrably fire
+**Verdict on 2a:** 14 of upstream's 24 error rules are absent or weakened; all 14 demonstrably fire
 on this repo's shapes; exactly **zero** of them is justified by an in-file comment. The six weakened
 ones have a comment that does not fit them (see F2); the seven omitted ones have no comment at all.
 
@@ -388,7 +397,7 @@ that matter most (the stability rules are `error` here and `off` upstream, and t
 rule is enforced by a test). It is not decorative: I reproduced six TS377xxx diagnostics firing under
 the shipped config and seven of nine dismantling mutations going red.
 
-But "at least equivalent to upstream" is not true of the rule map — 13 of 24 error rules are weaker
+But "at least equivalent to upstream" is not true of the rule map — 14 of 24 error rules are weaker
 or absent — and four of the documented invariants are wrong or overstated in the docs that every
 agent in this repo reads first. The gaps are all fixable, and three of them are small: a one-character
 regex widening, a frozen-object assertion in an existing test, and a comment rewrite. That profile is

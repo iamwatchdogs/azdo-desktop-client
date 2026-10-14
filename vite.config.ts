@@ -252,6 +252,11 @@ export default defineConfig({
       knip: {
         command:
           "knip --no-progress --reporter compact --include files,dependencies,unlisted,unresolved,exports",
+        // After the tests, not beside them: the architecture tests write probe
+        // fixtures into the source trees and remove them in a finally block,
+        // and knip scanning while one exists reports it as an unused file —
+        // a transient red that has nothing to do with the repo.
+        dependsOn: ["tests:all"],
         cache: false,
       },
 

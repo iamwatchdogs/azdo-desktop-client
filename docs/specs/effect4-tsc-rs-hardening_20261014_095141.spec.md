@@ -91,6 +91,30 @@ Upstream evidence (pingdotgg/t3code):
    README command table, AGENTS.md Effect + typecheck bullets, root
    `typecheck` script, toolchain test update.
 
+## Implementation status: done (2026-10-14)
+
+All four commits landed on `feat/adopt-effect-4` (`6e50a11`, `46e18b8`,
+`db172c4`, `177377a`), plus a fifth the push gate forced out (`knip` scanned
+the working tree while the architecture tests held a probe fixture — a
+transient unused-file report; `knip` now runs after `tests:all`, pinned by a
+test). `vp run push-gate` is green end to end, including the built-app e2e.
+
+Evidence (red-then-green per change):
+
+- Boundary: the three new scoped-import tests fail against the old
+  `/^effect(?:\/|$)/` and pass against `/^(?:@)?effect(?:\/|$)/`.
+- Diagnostics: TS377073 fired on `native.ts`'s `setTimeout` the moment
+  `globalTimersInEffect` went to `error`; the guard test goes red on four
+  mutations (structural rule downgraded, InEffect key dropped, key
+  misspelled, allowlist widened).
+- Deadline test: caught that the old timer was a TestClock cheat — `it.effect`
+  runs on the TestClock, so the test now forks the probe and advances the
+  clock, and runs in milliseconds instead of two seconds.
+- Root typecheck: red when the scripts half is dropped from the script.
+
+Notable fallout: `Effect.fork` is `Effect.forkChild` in Effect 4, and
+`TestClock` is imported from `effect/testing`, not `effect`.
+
 ## Out of scope
 
 - `--fast` / `GOPORT_FAST` (rejected upstream with measurements; nothing set).

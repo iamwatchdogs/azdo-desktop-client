@@ -66,21 +66,14 @@ describe("typecheck toolchain", () => {
     }
   });
 
-  it("orders the working-tree scanners after the suite that writes probe fixtures", () => {
-    // The architecture tests write probe fixtures into the source trees and
-    // delete them in a finally block. knip and architecture-check both scan
-    // the working tree, so either one running beside the tests can fail on a
-    // fixture that existed for a millisecond — a transient red that has
-    // nothing to do with the repo, observed twice in the push gate.
+  it("keeps the tree scanners independent of the suite", () => {
+    // The boundary suite used to write probe fixtures into the source trees,
+    // which forced knip and arch-check to wait for the tests so neither
+    // scanned a fixture mid-flight. The suite now probes a throwaway root, so
+    // the race is gone at its producer and a dependency is pure cost: it makes
+    // CI re-run the whole root suite inside the arch-check step. Re-adding one
+    // is a decision that needs a reason, so it has to break a test.
     const viteConfig = readFileSync(resolve(root, "vite.config.ts"), "utf8");
-    for (const task of ["arch-check", "knip"]) {
-      // Task keys are quoted only when they carry a hyphen (Vite Task), so
-      // accept both spellings.
-      const block = new RegExp(`(?:"${task}"|${task}): \\{[\\s\\S]*?\\n {6}\\}`).exec(
-        viteConfig,
-      )?.[0];
-      expect(block, `${task} task block`).toBeDefined();
-      expect(block).toContain('dependsOn: ["tests:all"]');
-    }
+    expect(viteConfig).not.toContain('dependsOn: ["tests:all"]');
   });
 });

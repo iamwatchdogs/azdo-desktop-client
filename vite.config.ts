@@ -247,25 +247,14 @@ export default defineConfig({
         cache: false,
       },
       /** ts-morph import-boundary guard. */
-      "arch-check": {
-        command: "node scripts/architecture-check.ts",
-        // After the tests, not beside them: the boundary tests write probe
-        // fixtures into the very source trees they assert against and remove
-        // them in a finally block, so a guard that scans the working tree
-        // while a test holds one reports the fixture as a violation. Same
-        // race as knip below.
-        dependsOn: ["tests:all"],
-        cache: false,
-      },
+      "arch-check": { command: "node scripts/architecture-check.ts", cache: false },
       /** Unused files, dependencies, exports. */
+      // No dependency on the test suite: the boundary tests probe a throwaway
+      // root, so nothing they run ever exists in the tree this scans, and
+      // sequencing against them only re-runs the suite (CI would pay for it).
       knip: {
         command:
           "knip --no-progress --reporter compact --include files,dependencies,unlisted,unresolved,exports",
-        // After the tests, not beside them: the architecture tests write probe
-        // fixtures into the source trees and remove them in a finally block,
-        // and knip scanning while one exists reports it as an unused file —
-        // a transient red that has nothing to do with the repo.
-        dependsOn: ["tests:all"],
         cache: false,
       },
 

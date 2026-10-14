@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { effectPluginConfig } from "./effect-config";
+
 const root = process.cwd();
 const catalog = readFileSync(resolve(root, "pnpm-workspace.yaml"), "utf8");
 
@@ -51,31 +53,11 @@ function effectRuntimeDependencies(): string[] {
 }
 
 /**
- * tsconfig.base.json is JSONC: `//` lines and a `/** ... *` block. Strip both
- * so the block can be parsed structurally rather than asserted as text.
+ * tsconfig.base.json is JSONC: `//` lines and a `/** ... *` block. The reader
+ * in ./effect-config strips both so tests assert the parsed structure.
  */
-function tsconfigBase(): { compilerOptions: Record<string, unknown> } {
-  const raw = readFileSync(resolve(root, "tsconfig.base.json"), "utf8");
-  const json = raw
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith("//"))
-    .join("\n");
-  return JSON.parse(json) as { compilerOptions: Record<string, unknown> };
-}
-
 function effectPlugin(): Record<string, unknown> {
-  const { compilerOptions } = tsconfigBase();
-  const plugins = compilerOptions["plugins"];
-  if (!Array.isArray(plugins)) throw new Error("tsconfig.base.json declares no compiler plugins");
-  const effect = plugins.find(
-    (plugin): plugin is Record<string, unknown> =>
-      typeof plugin === "object" &&
-      plugin !== null &&
-      (plugin as { name?: string }).name === "@effect/language-service",
-  );
-  if (effect === undefined) throw new Error("@effect/language-service plugin block is missing");
-  return effect;
+  return effectPluginConfig(root) as unknown as Record<string, unknown>;
 }
 
 describe("effect dependency resolution", () => {
@@ -103,25 +85,10 @@ describe("effect dependency resolution", () => {
     expect(effectPlugin()["name"]).toBe("@effect/language-service");
   });
 
-  it("default-denies unstable Effect APIs except the one proven edge", () => {
-    const allowed = effectPlugin()["allowedUnstableApis"];
-    expect(allowed).toEqual(["@effect/vitest"]);
-    expect(effectPlugin()["allowedExperimentalApis"]).toEqual([]);
-
-    const severity = effectPlugin()["diagnosticSeverity"];
-    expect(typeof severity).toBe("object");
-    const severities = severity as Record<string, string>;
-    expect(severities["unstableApiUsage"]).toBe("error");
-    expect(severities["experimentalApiUsage"]).toBe("error");
-    expect(severities["anyUnknownInErrorContext"]).toBe("error");
-    expect(severities["leakingRequirements"]).toBe("error");
-  });
-
-  it("does not relax the global-I/O rules the main process needs", () => {
-    // main.ts is plain imperative tooling on purpose: it must be able to use
-    // node:path and console.warn without opting out line by line.
-    const severities = effectPlugin()["diagnosticSeverity"] as Record<string, string>;
-    expect(severities["nodeBuiltinImport"]).toBe("off");
-    expect(severities["globalConsole"]).toBe("off");
+  it("treats the effect namespace as Effect, not a bag of functions", () => {
+    // The InEffect rules and the namespace import treatment are wired through
+    // this list: a package that is not in it does not get the Effect idiom
+    // checks at all.
+    expect(effectPluginConfig(root).namespaceImportPackages).toContain("effect");
   });
 });

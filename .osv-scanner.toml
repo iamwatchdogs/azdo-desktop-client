@@ -26,18 +26,6 @@ Remove this entry once typography bumps its floor.
 """
 
 [[IgnoredVulns]]
-id = "GHSA-hp3w-g68c-fv3c"
-reason = """
-sprintf-js: unbounded precision handling allows a denial of service.
-
-Transitive via roarr -> global-agent -> @electron/get -> app-builder-lib ->
-electron-builder (a devDependency of @ado/desktop), i.e. packaging tooling that
-runs at build time and never in the shipped app. No fixed version exists in any
-sprintf-js release; 1.1.3 is the newest. This entry is not actionable upstream
-and should be removed only in favour of the package leaving the tree.
-"""
-
-[[IgnoredVulns]]
 id = "GHSA-776f-qx25-q3cc"
 reason = """
 xml2js: prototype pollution when parsing crafted XML.
